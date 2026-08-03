@@ -79,6 +79,12 @@ svg{display:block}
 .sumcell .v{font-family:var(--mono);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
 .sumcell .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-top:2px}
 .sumsignals{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;font-size:12.5px}
+.rangebar{display:flex;gap:6px;margin-bottom:12px}
+.rb{flex:1;background:var(--panel);color:var(--dim);border:1px solid var(--line);
+  border-radius:8px;padding:8px 0;font-size:13px;font-weight:600}
+.rb.on{background:var(--amber);color:#131313;border-color:var(--amber)}
+.delbtn{background:transparent;color:var(--down);border:1px solid #6B3038;
+  border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;margin-top:12px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -108,6 +114,12 @@ svg{display:block}
   </details>
 
   <div id="summary"></div>
+  <div class="rangebar" id="rangebar">
+    <button class="rb" data-range="1d">Päev</button>
+    <button class="rb" data-range="1mo">Kuu</button>
+    <button class="rb" data-range="1y">Aasta</button>
+    <button class="rb" data-range="max">Kogu aeg</button>
+  </div>
   <div id="list"></div>
 
   <p class="note">Hinnad: Yahoo Finance (võib olla 15 min viitega; Xetra sümbolid lõpuga .DE,
@@ -145,6 +157,9 @@ const PROXIES=[
   u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
 ];
 let goodProxy=parseInt(localStorage.getItem('aktsiajalgija-proxy')||'0');
+const RANGES={'1d':'range=1d&interval=5m','1mo':'range=1mo&interval=1d',
+  '1y':'range=1y&interval=1d','max':'range=max&interval=1mo'};
+let range=localStorage.getItem('aktsiajalgija-range')||'1d';
 
 async function yget(url){
   // Alusta viimati töötanud proksist, siis proovi ülejäänuid
@@ -168,8 +183,8 @@ async function yget(url){
 async function fetchYahoo(sym){
   const base='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym);
   const [intra,yearly]=await Promise.all([
-    yget(base+'?range=1d&interval=5m'),
-    yget(base+'?range=1y&interval=1d')
+    yget(base+'?'+RANGES[range]),
+    range==='1y'?Promise.resolve(null):yget(base+'?range=1y&interval=1d')
   ]);
   const res=intra&&intra.chart&&intra.chart.result&&intra.chart.result[0];
   if(!res)throw new Error('andmeid ei saadud');
@@ -180,7 +195,8 @@ async function fetchYahoo(sym){
 
   // Tehniline signaal aastastest päevaandmetest
   let sig=null;
-  const yres=yearly&&yearly.chart&&yearly.chart.result&&yearly.chart.result[0];
+  const ysrc=range==='1y'?intra:yearly;
+  const yres=ysrc&&ysrc.chart&&ysrc.chart.result&&ysrc.chart.result[0];
   if(yres){
     const dc=(yres.indicators.quote[0].close||[]).filter(v=>v!=null);
     if(dc.length>60){
@@ -217,6 +233,7 @@ async function fetchYahoo(sym){
     price:price, currency:meta.currency,
     changePct: prev?((price-prev)/prev*100):null,
     series: closes.length>1?closes:null,
+    seriesPct: closes.length>1?(closes[closes.length-1]/closes[0]-1)*100:null,
     sig:sig, analyst:analyst,
     time:new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})
   };
@@ -290,7 +307,7 @@ function render(){
             (rc?'<span class="badge '+badgeCls(rc.rec)+'">'+rc.rec+'</span>':'')+'</div>'+
           '<div class="nm">'+esc(t.name)+'</div>'+
         '</div>'+
-        (d&&d.series?spark(d.series,d.changePct):'')+
+        (d&&d.series?spark(d.series,range==='1d'?d.changePct:d.seriesPct):'')+
         '<div class="right">'+
           (d==='loading'?'<div class="price dim" style="font-size:14px">otsin…</div>':
            d==='error'?'<div class="pct down">ei saanud andmeid<br><button class="btn-outline" data-act="refresh" style="margin-top:4px;padding:4px 10px;font-size:12px">proovi uuesti</button></div>':
@@ -302,7 +319,6 @@ function render(){
         '<div class="icons">'+
           '<button class="ib" data-act="refresh" title="Värskenda">↻</button>'+
           '<button class="ib'+(ex?' on':'')+'" data-act="toggle" title="Analüüs">'+(ex?'−':'+')+'</button>'+
-          '<button class="ib del" data-act="del" title="Eemalda">×</button>'+
         '</div>'+
       '</div>'+
       (ex?'<div class="detail">'+
@@ -332,6 +348,7 @@ function render(){
           '<a href="https://www.morningstar.com/search?query='+encodeURIComponent(baseSym(t.symbol))+'" target="_blank" rel="noopener">Morningstar</a>'+
         '</div>'+
         (d&&d.time?'<div class="dim" style="font-size:11px;margin-top:10px;font-family:var(--mono)">uuendatud '+d.time+'</div>':'')+
+        '<button class="delbtn" data-act="del">× Eemalda jälgimisest</button>'+
       '</div>':'')+
     '</div>';
   }).join('');
@@ -371,13 +388,37 @@ async function analyze(sym){
 }
 
 $('list').addEventListener('click',e=>{
-  const b=e.target.closest('button');if(!b)return;
-  const sym=e.target.closest('.card').dataset.sym, act=b.dataset.act;
-  if(act==='refresh')refreshOne(sym);
-  else if(act==='toggle'){expanded[sym]=!expanded[sym];render()}
-  else if(act==='del'){tickers=tickers.filter(t=>t.symbol!==sym);delete dataMap[sym];save();render()}
-  else if(act==='analyze')analyze(sym);
+  const card=e.target.closest('.card');if(!card)return;
+  const sym=card.dataset.sym;
+  const b=e.target.closest('button');
+  if(b){
+    const act=b.dataset.act;
+    if(act==='refresh')refreshOne(sym);
+    else if(act==='toggle'){expanded[sym]=!expanded[sym];render()}
+    else if(act==='del'){
+      if(confirm('Kas eemaldada '+sym+' jälgimisest?')){
+        tickers=tickers.filter(t=>t.symbol!==sym);delete dataMap[sym];save();render();
+      }
+    }
+    else if(act==='analyze')analyze(sym);
+    return;
+  }
+  if(e.target.closest('a'))return; // lingid töötavad tavaliselt
+  // Vajutus kaardi real avab/sulgeb detailvaate
+  if(e.target.closest('.row')){expanded[sym]=!expanded[sym];render()}
 });
+
+function paintRange(){
+  document.querySelectorAll('#rangebar .rb').forEach(b=>
+    b.classList.toggle('on',b.dataset.range===range));
+}
+$('rangebar').addEventListener('click',e=>{
+  const b=e.target.closest('.rb');if(!b||b.dataset.range===range)return;
+  range=b.dataset.range;localStorage.setItem('aktsiajalgija-range',range);
+  paintRange();
+  (async()=>{for(const t of tickers)await refreshOne(t.symbol)})();
+});
+paintRange();
 
 $('addBtn').addEventListener('click',add);
 $('sym').addEventListener('keydown',e=>e.key==='Enter'&&add());
