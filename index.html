@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1017">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Aktsiajälgija</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Aktsiajälgija","short_name":"Aktsiad","start_url":".","display":"standalone","background_color":"%230B1017","theme_color":"%230B1017"}'>
+<style>
+:root{
+  --bg:#0B1017; --panel:#121926; --line:#232E42; --amber:#F0B429;
+  --text:#E8EDF5; --dim:#8494AB; --up:#3DD68C; --down:#F06A6A;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+  --sans:'Inter',system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  padding:0 0 60px;-webkit-tap-highlight-color:transparent}
+header{border-bottom:1px solid var(--line);padding:20px 16px 16px;max-width:860px;margin:0 auto;
+  display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--amber);text-transform:uppercase}
+h1{margin:6px 0 0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+main{max-width:860px;margin:0 auto;padding:16px}
+.addform{display:flex;gap:8px;flex-wrap:wrap;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:16px}
+input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;
+  padding:10px 12px;font-size:14px;font-family:var(--sans)}
+input:focus,button:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+#sym{width:120px}#nm{flex:1;min-width:130px}
+button{cursor:pointer;font-family:var(--sans)}
+.btn-primary{background:var(--amber);color:#131313;border:none;border-radius:8px;
+  padding:10px 16px;font-weight:700;font-size:14px}
+.btn-outline{background:transparent;color:var(--amber);border:1px solid var(--amber);
+  border-radius:8px;padding:9px 14px;font-weight:600;font-size:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:14px 14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.symline{display:flex;align-items:baseline;gap:8px}
+.sym{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--amber)}
+.nm{font-size:12.5px;color:var(--dim);margin-top:2px;max-width:210px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.price{font-family:var(--mono);font-size:18px;font-weight:600;text-align:right;
+  font-variant-numeric:tabular-nums}
+.pct{font-family:var(--mono);font-size:12.5px;text-align:right;font-variant-numeric:tabular-nums}
+.right{margin-left:auto;min-width:100px}
+.icons{display:flex;gap:6px}
+.ib{width:32px;height:32px;border-radius:7px;background:transparent;color:var(--dim);
+  border:1px solid var(--line);font-size:15px;display:flex;align-items:center;justify-content:center}
+.ib.del{color:var(--down);border-color:#3A2530}
+.ib.on{background:var(--amber);color:#131313;border-color:var(--amber)}
+.up{color:var(--up)}.down{color:var(--down)}.dim{color:var(--dim)}
+.detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:14px;line-height:1.55}
+.lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--amber);
+  font-family:var(--mono);margin:10px 0 4px}
+.lbl:first-child{margin-top:0}
+.note{font-size:12px;color:var(--dim);line-height:1.6;margin-top:22px}
+.empty{border:1px dashed var(--line);border-radius:10px;padding:26px;text-align:center;
+  color:var(--dim);font-size:14px}
+.msg{align-self:center;font-size:13px;color:var(--down)}
+details.settings{margin-bottom:14px;font-size:13px;color:var(--dim)}
+details.settings summary{cursor:pointer;color:var(--amber);font-family:var(--mono);font-size:12px}
+details.settings input{width:100%;margin-top:8px}
+svg{display:block}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{color:var(--text);font-size:12.5px;text-decoration:none;border:1px solid var(--line);
+  border-radius:20px;padding:5px 12px;background:var(--bg)}
+.links a:active{border-color:var(--amber);color:var(--amber)}
+.badge{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;
+  border-radius:5px;padding:3px 8px;white-space:nowrap}
+.b-buy{background:#12352A;color:var(--up);border:1px solid #1E5C46}
+.b-hold{background:#2E2A18;color:var(--amber);border:1px solid #57491F}
+.b-sell{background:#3A2026;color:var(--down);border:1px solid #6B3038}
+.summary{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:14px 16px;margin-bottom:14px}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:8px}
+.sumcell .v{font-family:var(--mono);font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.sumcell .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin-top:2px}
+.sumsignals{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;font-size:12.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">● reaalajas · yahoo finance</div>
+    <h1>Aktsiajälgija</h1>
+  </div>
+  <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
+</header>
+
+<main>
+  <div class="addform">
+    <input id="sym" placeholder="Sümbol (nt AAPL, SXR8.DE)" autocapitalize="characters">
+    <input id="nm" placeholder="Nimi (valikuline)">
+    <button class="btn-outline" id="addBtn">+ Lisa</button>
+    <span class="msg" id="msg"></span>
+  </div>
+
+  <details class="settings">
+    <summary>⚙ Analüüsi seaded (valikuline)</summary>
+    <p>Veebianalüüsid (Yahoo, TipRanks jt) töötavad ilma võtmeta – need on iga instrumendi
+    + nupu all. Kui soovid lisaks Claude'i kokkuvõtvat analüüsi otse äpis, sisesta Anthropicu
+    API-võti. Võti salvestub ainult sinu telefoni.</p>
+    <input id="apikey" type="password" placeholder="sk-ant-...">
+  </details>
+
+  <div id="summary"></div>
+  <div id="list"></div>
+
+  <p class="note">Hinnad: Yahoo Finance (võib olla 15 min viitega; Xetra sümbolid lõpuga .DE,
+  nt SXR8.DE). Graafik näitab päeva tegelikku hinnakäiku.<br>
+  <b>Soovitused:</b> aktsiatel Yahoo analüütikute konsensus (kui kättesaadav), muudel juhtudel
+  tehniline signaal (50/200 päeva libisev keskmine + 3 kuu momentum). See on lihtsustatud
+  indikaator, mitte investeerimisnõustamine – otsused tee ise.<br>
+  <b>Telefoni lisamine:</b> Chrome lubab „Lisa avakuvale" ainult veebiaadressilt (https), mitte
+  kohalikust failist. Pane fail üles nt Netlify Drop'i või oma serverisse ja ava sealt – siis
+  ilmub installivõimalus.</p>
+</main>
+
+<script>
+const KEY='aktsiajalgija-list', AKEY='aktsiajalgija-apikey';
+const DEFAULTS=[
+  {symbol:'MSFT',name:'Microsoft'},
+  {symbol:'SXR8.DE',name:'iShares Core S&P 500'},
+  {symbol:'EXUS.DE',name:'Xtrackers MSCI World ex USA'},
+  {symbol:'NVO',name:'Novo Nordisk'}
+];
+let tickers=JSON.parse(localStorage.getItem(KEY)||'null')||DEFAULTS;
+let dataMap={},expanded={},analysis={};
+
+const $=id=>document.getElementById(id);
+$('apikey').value=localStorage.getItem(AKEY)||'';
+$('apikey').addEventListener('change',e=>localStorage.setItem(AKEY,e.target.value.trim()));
+
+function save(){localStorage.setItem(KEY,JSON.stringify(tickers))}
+
+// Mitu CORS-proksit varuvariandiks; jätame meelde, milline viimati töötas
+const PROXIES=[
+  u=>u,
+  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
+  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
+];
+let goodProxy=parseInt(localStorage.getItem('aktsiajalgija-proxy')||'0');
+
+async function yget(url){
+  // Alusta viimati töötanud proksist, siis proovi ülejäänuid
+  const order=[goodProxy,...PROXIES.map((_,i)=>i).filter(i=>i!==goodProxy)];
+  for(const i of order){
+    try{
+      const ctrl=new AbortController();
+      const tm=setTimeout(()=>ctrl.abort(),9000);
+      const r=await fetch(PROXIES[i](url),{signal:ctrl.signal});
+      clearTimeout(tm);
+      if(!r.ok)continue;
+      const j=await r.json();
+      if(j&&j.chart&&j.chart.error)continue;
+      goodProxy=i;localStorage.setItem('aktsiajalgija-proxy',String(i));
+      return j;
+    }catch(e){}
+  }
+  return null;
+}
+
+async function fetchYahoo(sym){
+  const base='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym);
+  const [intra,yearly]=await Promise.all([
+    yget(base+'?range=1d&interval=5m'),
+    yget(base+'?range=1y&interval=1d')
+  ]);
+  const res=intra&&intra.chart&&intra.chart.result&&intra.chart.result[0];
+  if(!res)throw new Error('andmeid ei saadud');
+  const meta=res.meta;
+  const closes=(res.indicators.quote[0].close||[]).filter(v=>v!=null);
+  const price=meta.regularMarketPrice;
+  const prev=meta.chartPreviousClose||meta.previousClose;
+
+  // Tehniline signaal aastastest päevaandmetest
+  let sig=null;
+  const yres=yearly&&yearly.chart&&yearly.chart.result&&yearly.chart.result[0];
+  if(yres){
+    const dc=(yres.indicators.quote[0].close||[]).filter(v=>v!=null);
+    if(dc.length>60){
+      const sma=n=>dc.slice(-n).reduce((a,b)=>a+b,0)/Math.min(n,dc.length);
+      const s50=sma(50), s200=dc.length>=200?sma(200):sma(dc.length);
+      const hi52=Math.max(...dc), lo52=Math.min(...dc);
+      const mom3k=dc.length>63?(price/dc[dc.length-63]-1)*100:null; // ~3 kuu momentum
+      let score=0, why=[];
+      if(price>s50){score++;why.push('hind üle 50 päeva keskmise')}else{score--;why.push('hind alla 50 päeva keskmise')}
+      if(price>s200){score++;why.push('pikk trend tõusev (üle 200p keskmise)')}else{score--;why.push('pikk trend langev (alla 200p keskmise)')}
+      if(mom3k!=null){if(mom3k>3){score++;why.push('3 kuu momentum +'+mom3k.toFixed(1)+'%')}
+        else if(mom3k<-3){score--;why.push('3 kuu momentum '+mom3k.toFixed(1)+'%')}}
+      const pos52=(price-lo52)/((hi52-lo52)||1)*100;
+      sig={rec:score>=2?'OSTA':score<=-2?'MÜÜ':'HOIA',score:score,why:why,
+        hi52:hi52,lo52:lo52,pos52:pos52,mom3k:mom3k};
+    }
+  }
+
+  // Analüütikute konsensus (töötab aktsiatel, ETF-idel enamasti mitte)
+  let analyst=null;
+  try{
+    const q=await yget('https://query1.finance.yahoo.com/v10/finance/quoteSummary/'+
+      encodeURIComponent(sym)+'?modules=financialData');
+    const fd=q&&q.quoteSummary&&q.quoteSummary.result&&q.quoteSummary.result[0]&&
+      q.quoteSummary.result[0].financialData;
+    if(fd&&fd.recommendationKey){
+      analyst={key:fd.recommendationKey,
+        target:fd.targetMeanPrice&&fd.targetMeanPrice.raw,
+        n:fd.numberOfAnalystOpinions&&fd.numberOfAnalystOpinions.raw};
+    }
+  }catch(e){}
+
+  return {
+    price:price, currency:meta.currency,
+    changePct: prev?((price-prev)/prev*100):null,
+    series: closes.length>1?closes:null,
+    sig:sig, analyst:analyst,
+    time:new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})
+  };
+}
+
+// Lõplik soovitus: analüütikute oma kui olemas, muidu tehniline
+function recOf(d){
+  if(!d||d==='loading'||d==='error')return null;
+  if(d.analyst){
+    const k=d.analyst.key;
+    const rec=/buy/.test(k)?'OSTA':/sell|underperform/.test(k)?'MÜÜ':'HOIA';
+    return {rec:rec,src:'analüütikud'};
+  }
+  if(d.sig)return {rec:d.sig.rec,src:'tehniline'};
+  return null;
+}
+function badgeCls(rec){return rec==='OSTA'?'b-buy':rec==='MÜÜ'?'b-sell':'b-hold'}
+
+function spark(series,pct){
+  if(!series)return '';
+  const w=110,h=34,min=Math.min(...series),max=Math.max(...series),rng=(max-min)||1;
+  const pts=series.map((v,i)=>((i/(series.length-1))*w).toFixed(1)+','+((h-((v-min)/rng)*(h-4)-2)).toFixed(1)).join(' ');
+  const col=pct>0?'var(--up)':pct<0?'var(--down)':'var(--dim)';
+  return '<svg width="'+w+'" height="'+h+'" aria-hidden="true"><polyline points="'+pts+
+    '" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linejoin="round" opacity=".9"/></svg>';
+}
+
+function baseSym(s){return s.split('.')[0]}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+function renderSummary(){
+  const el=$('summary');
+  const loaded=tickers.map(t=>({t:t,d:dataMap[t.symbol]}))
+    .filter(x=>x.d&&x.d!=='loading'&&x.d!=='error');
+  if(!loaded.length){el.innerHTML='';return}
+  const chgs=loaded.filter(x=>x.d.changePct!=null);
+  const avg=chgs.length?chgs.reduce((a,x)=>a+x.d.changePct,0)/chgs.length:0;
+  const best=chgs.slice().sort((a,b)=>b.d.changePct-a.d.changePct)[0];
+  const worst=chgs.slice().sort((a,b)=>a.d.changePct-b.d.changePct)[0];
+  const recs=loaded.map(x=>recOf(x.d)).filter(Boolean);
+  const cnt=r=>recs.filter(x=>x.rec===r).length;
+  const avgCls=avg>0?'up':avg<0?'down':'dim';
+  el.innerHTML='<div class="summary">'+
+    '<div class="lbl" style="margin-top:0">Kokkuvõte · '+loaded.length+' instrumenti</div>'+
+    '<div class="sumgrid">'+
+      '<div class="sumcell"><div class="v '+avgCls+'">'+(avg>0?'+':'')+avg.toFixed(2)+'%</div><div class="k">Keskmine päevamuutus</div></div>'+
+      (best?'<div class="sumcell"><div class="v up">'+esc(best.t.symbol)+' +'+best.d.changePct.toFixed(2)+'%</div><div class="k">Päeva parim</div></div>':'')+
+      (worst&&worst.d.changePct<0?'<div class="sumcell"><div class="v down">'+esc(worst.t.symbol)+' '+worst.d.changePct.toFixed(2)+'%</div><div class="k">Päeva nõrgim</div></div>':'')+
+    '</div>'+
+    '<div class="sumsignals">'+
+      '<span class="badge b-buy">OSTA '+cnt('OSTA')+'</span>'+
+      '<span class="badge b-hold">HOIA '+cnt('HOIA')+'</span>'+
+      '<span class="badge b-sell">MÜÜ '+cnt('MÜÜ')+'</span>'+
+    '</div>'+
+  '</div>';
+}
+
+function render(){
+  renderSummary();
+  const el=$('list');
+  if(!tickers.length){el.innerHTML='<div class="empty">Nimekiri on tühi. Lisa esimene sümbol ülal.</div>';return}
+  el.innerHTML=tickers.map(t=>{
+    const d=dataMap[t.symbol], a=analysis[t.symbol], ex=expanded[t.symbol];
+    const pctCls=d&&d.changePct>0?'up':d&&d.changePct<0?'down':'dim';
+    const arrow=d&&d.changePct>0?'▲':d&&d.changePct<0?'▼':'•';
+    const rc=recOf(d);
+    return '<div class="card" data-sym="'+esc(t.symbol)+'">'+
+      '<div class="row">'+
+        '<div style="min-width:140px;flex:1 1 140px">'+
+          '<div class="symline"><span class="sym">'+esc(t.symbol)+'</span>'+
+            (rc?'<span class="badge '+badgeCls(rc.rec)+'">'+rc.rec+'</span>':'')+'</div>'+
+          '<div class="nm">'+esc(t.name)+'</div>'+
+        '</div>'+
+        (d&&d.series?spark(d.series,d.changePct):'')+
+        '<div class="right">'+
+          (d==='loading'?'<div class="price dim" style="font-size:14px">otsin…</div>':
+           d==='error'?'<div class="pct down">ei saanud andmeid<br><button class="btn-outline" data-act="refresh" style="margin-top:4px;padding:4px 10px;font-size:12px">proovi uuesti</button></div>':
+           d?'<div class="price">'+d.price.toLocaleString('et-EE',{minimumFractionDigits:2,maximumFractionDigits:2})+
+              ' <span class="dim" style="font-size:12px">'+esc(d.currency||'')+'</span></div>'+
+              '<div class="pct '+pctCls+'">'+arrow+' '+(d.changePct!=null?Math.abs(d.changePct).toFixed(2)+'%':'')+'</div>':
+           '<div class="pct dim">pole veel</div>')+
+        '</div>'+
+        '<div class="icons">'+
+          '<button class="ib" data-act="refresh" title="Värskenda">↻</button>'+
+          '<button class="ib'+(ex?' on':'')+'" data-act="toggle" title="Analüüs">'+(ex?'−':'+')+'</button>'+
+          '<button class="ib del" data-act="del" title="Eemalda">×</button>'+
+        '</div>'+
+      '</div>'+
+      (ex?'<div class="detail">'+
+        (rc?'<div class="lbl">Soovitus</div><div><span class="badge '+badgeCls(rc.rec)+'">'+rc.rec+'</span>'+
+          ' <span class="dim" style="font-size:12px">('+rc.src+
+          (d.analyst&&d.analyst.n?', '+d.analyst.n+' analüütikut':'')+')</span>'+
+          (d.analyst&&d.analyst.target?'<div style="margin-top:6px;font-size:13px">Hinnasiht: <b style="font-family:var(--mono)">'+
+            d.analyst.target.toLocaleString('et-EE',{maximumFractionDigits:2})+' '+esc(d.currency||'')+'</b>'+
+            ' <span class="'+(d.analyst.target>d.price?'up':'down')+'">('+
+            ((d.analyst.target/d.price-1)*100).toFixed(1)+'%)</span></div>':'')+
+          (d.sig?'<div class="dim" style="font-size:12.5px;margin-top:6px">'+
+            d.sig.why.map(esc).join(' · ')+
+            '<br>52 näd vahemikus: '+d.sig.pos52.toFixed(0)+'% (min '+
+            d.sig.lo52.toLocaleString('et-EE',{maximumFractionDigits:2})+' – max '+
+            d.sig.hi52.toLocaleString('et-EE',{maximumFractionDigits:2})+')</div>':'')+
+          '</div>':'')+
+        (a==='loading'?'<span class="dim">Küsin Claude\u2019ilt analüüsi…</span>':
+         a&&a.error?'<span class="down">'+esc(a.error)+'</span>':
+         a?'<div class="lbl">Analüüs</div><div>'+esc(a.summary||'')+'</div>'+
+           '<div class="lbl">Prognoos</div><div>'+esc(a.forecast||'')+'</div>'+
+           '<div class="lbl">Meeleolu</div><div>'+esc(a.sentiment||'')+'</div>':
+         (localStorage.getItem(AKEY)?'<button class="btn-outline" data-act="analyze">Küsi Claude\u2019i analüüsi</button>':''))+
+        '<div class="lbl">Veebianalüüsid</div><div class="links">'+
+          '<a href="https://finance.yahoo.com/quote/'+encodeURIComponent(t.symbol)+'/analysis" target="_blank" rel="noopener">Yahoo analüütikud</a>'+
+          '<a href="https://www.tipranks.com/stocks/'+encodeURIComponent(baseSym(t.symbol).toLowerCase())+'/forecast" target="_blank" rel="noopener">TipRanks</a>'+
+          '<a href="https://www.marketscreener.com/search/?q='+encodeURIComponent(baseSym(t.symbol))+'" target="_blank" rel="noopener">MarketScreener</a>'+
+          '<a href="https://www.morningstar.com/search?query='+encodeURIComponent(baseSym(t.symbol))+'" target="_blank" rel="noopener">Morningstar</a>'+
+        '</div>'+
+        (d&&d.time?'<div class="dim" style="font-size:11px;margin-top:10px;font-family:var(--mono)">uuendatud '+d.time+'</div>':'')+
+      '</div>':'')+
+    '</div>';
+  }).join('');
+}
+
+async function refreshOne(sym){
+  dataMap[sym]='loading';render();
+  try{dataMap[sym]=await fetchYahoo(sym)}catch(e){dataMap[sym]='error'}
+  render();
+}
+
+async function analyze(sym){
+  const key=localStorage.getItem(AKEY);
+  if(!key)return;
+  const t=tickers.find(x=>x.symbol===sym);
+  analysis[sym]='loading';render();
+  try{
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,
+        'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:800,
+        tools:[{type:'web_search_20250305',name:'web_search'}],
+        messages:[{role:'user',content:'Otsi veebist värske info väärtpaberi kohta '+sym+' ('+t.name+
+          '). Vasta AINULT JSON-iga: {"summary":"2-3 lauset eesti keeles, mis hinda praegu mõjutab",'+
+          '"forecast":"2-3 lauset eesti keeles lühiajalisest väljavaatest",'+
+          '"sentiment":"positiivne|neutraalne|negatiivne"}'}]})
+    });
+    if(!r.ok)throw new Error('API viga '+r.status);
+    const j=await r.json();
+    const txt=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')
+      .replace(/```json|```/g,'').trim();
+    const s=txt.indexOf('{'),e=txt.lastIndexOf('}');
+    analysis[sym]=JSON.parse(txt.slice(s,e+1));
+  }catch(e){analysis[sym]={error:'Analüüs ebaõnnestus: '+e.message}}
+  render();
+}
+
+$('list').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  const sym=e.target.closest('.card').dataset.sym, act=b.dataset.act;
+  if(act==='refresh')refreshOne(sym);
+  else if(act==='toggle'){expanded[sym]=!expanded[sym];render()}
+  else if(act==='del'){tickers=tickers.filter(t=>t.symbol!==sym);delete dataMap[sym];save();render()}
+  else if(act==='analyze')analyze(sym);
+});
+
+$('addBtn').addEventListener('click',add);
+$('sym').addEventListener('keydown',e=>e.key==='Enter'&&add());
+$('nm').addEventListener('keydown',e=>e.key==='Enter'&&add());
+function add(){
+  const s=$('sym').value.trim().toUpperCase();if(!s)return;
+  if(tickers.some(t=>t.symbol===s)){$('msg').textContent=s+' on juba nimekirjas';
+    setTimeout(()=>$('msg').textContent='',2500);return}
+  tickers.push({symbol:s,name:$('nm').value.trim()||s});
+  $('sym').value='';$('nm').value='';save();render();refreshOne(s);
+}
+
+$('refreshAll').addEventListener('click',async()=>{
+  for(const t of tickers)await refreshOne(t.symbol);
+});
+
+render();
+// Automaatne esmalaadimine + värskendus iga 5 min
+(async()=>{for(const t of tickers)await refreshOne(t.symbol)})();
+setInterval(()=>{tickers.forEach(t=>refreshOne(t.symbol))},5*60*1000);
+</script>
+</body>
+</html>
