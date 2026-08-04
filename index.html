@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.1</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.2</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -431,7 +431,8 @@ function render(){
          a?'<div class="lbl">Analüüs</div><div>'+esc(a.summary||'')+'</div>'+
            '<div class="lbl">Prognoos</div><div>'+esc(a.forecast||'')+'</div>'+
            '<div class="lbl">Meeleolu</div><div>'+esc(a.sentiment||'')+
-           (a._t?' <span class="dim" style="font-size:11px;font-family:var(--mono)">· AI analüüs '+a._t+'</span>':'')+'</div>':
+           (a._t?' <span class="dim" style="font-size:11px;font-family:var(--mono)">· AI analüüs '+a._t+'</span>':'')+'</div>'+
+           '<button class="btn-outline" data-act="reanalyze" style="margin-top:8px;padding:6px 12px;font-size:13px">↻ Värskenda analüüsi</button>':
          (hasAiKey()?'<button class="btn-outline" data-act="analyze">Küsi AI analüüsi</button>':''))+
         '<div class="lbl">Veebianalüüsid</div><div class="links">'+
           '<a href="https://finance.yahoo.com/quote/'+encodeURIComponent(t.symbol)+'/analysis" target="_blank" rel="noopener">Yahoo analüütikud</a>'+
@@ -481,14 +482,14 @@ function parseAiJson(txt){
   return JSON.parse(c.slice(s,e+1));
 }
 
-async function analyze(sym){
+async function analyze(sym,force){
   const gk=localStorage.getItem(GKEY), ak=localStorage.getItem(AKEY);
   if(!gk&&!ak)return;
   const t=tickers.find(x=>x.symbol===sym);
 
-  // 1) Vahemälu: kui analüüs on alla 30 min vana, ei tee ühtegi päringut
+  // 1) Vahemälu: kui analüüs on alla 30 min vana, ei tee ühtegi päringut (v.a sunnitud värskendus)
   const cached=aiCache[sym];
-  if(cached&&cached.data&&Date.now()-cached.ts<30*60*1000){
+  if(!force&&cached&&cached.data&&Date.now()-cached.ts<30*60*1000){
     analysis[sym]=cached.data;render();return;
   }
   // 2) Jahutus: kui limiit oli hetk tagasi täis, ei proovi enne 60 s möödumist
@@ -564,6 +565,7 @@ $('list').addEventListener('click',e=>{
       }
     }
     else if(act==='analyze')analyze(sym);
+    else if(act==='reanalyze')analyze(sym,true);
     return;
   }
   if(e.target.closest('a'))return; // lingid töötavad tavaliselt
