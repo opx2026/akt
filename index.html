@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.0</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.1</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -119,6 +119,7 @@ svg{display:block}
     <input id="gkey" type="password" placeholder="Gemini võti (tasuta, soovitatud)">
     <button class="btn-outline" id="testKey" style="margin-top:8px">Testi Gemini võtit</button>
     <span id="testRes" style="display:block;margin-top:8px;font-size:13px;line-height:1.5"></span>
+    <span id="gusage" style="display:block;margin-top:8px;font-size:12.5px;font-family:var(--mono);color:var(--dim)"></span>
     <input id="apikey" type="password" placeholder="Anthropic võti (valikuline): sk-ant-...">
     <p style="margin-bottom:0">Hinnad: valikuline <b>Finnhubi</b> võti (tasuta: finnhub.io)
     annab USA sümbolitele (MSFT, NVO jt) ametliku kiire allika; Euroopa (.DE) jääb Yahoo peale.</p>
@@ -176,6 +177,7 @@ $('testKey').addEventListener('click',async()=>{
   for(const mdl of models){
     out.textContent='testin '+mdl+'…';
     try{
+      gTrack();
       const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contents:[{parts:[{text:'Vasta ühe sõnaga: OK'}]}]})
@@ -195,6 +197,31 @@ $('testKey').addEventListener('click',async()=>{
 $('fkey').value=localStorage.getItem(FKEY)||'';
 $('fkey').addEventListener('change',e=>localStorage.setItem(FKEY,e.target.value.trim()));
 function hasAiKey(){return !!(localStorage.getItem(GKEY)||localStorage.getItem(AKEY))}
+
+// Gemini kasutuse loendur (ainult selle seadme päringud selle äpi kaudu)
+const G_RPD=1500, G_RPM=15;
+function gUsage(){
+  let u;try{u=JSON.parse(localStorage.getItem('aktsiajalgija-gusage')||'{}')}catch(e){u={}}
+  // Google nullib päevakvoodi keskööl Vaikse ookeani aja järgi
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'America/Los_Angeles'});
+  if(u.d!==today){u={d:today,n:0,ts:[]}}
+  u.ts=(u.ts||[]).filter(t=>Date.now()-t<60*1000);
+  return u;
+}
+function gTrack(){
+  const u=gUsage();
+  u.n=(u.n||0)+1;u.ts.push(Date.now());
+  try{localStorage.setItem('aktsiajalgija-gusage',JSON.stringify(u))}catch(e){}
+  paintUsage();
+}
+function paintUsage(){
+  const el=$('gusage');if(!el)return;
+  if(!localStorage.getItem(GKEY)){el.textContent='';return}
+  const u=gUsage();
+  el.textContent='Gemini täna: '+(u.n||0)+' / '+G_RPD+' päringut · viimane minut: '+u.ts.length+' / '+G_RPM+
+    ' (loendab ainult selle seadme päringuid)';
+}
+setInterval(paintUsage,15000);
 
 function save(){localStorage.setItem(KEY,JSON.stringify(tickers))}
 
@@ -487,6 +514,7 @@ async function analyze(sym){
       for(const [mdl,withSearch] of tries.slice(0,3)){
         const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name,dataMap[sym])}]}]};
         if(withSearch)body.tools=[{google_search:{}}];
+        gTrack();
         const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify(body)
@@ -569,6 +597,7 @@ function add(){
 $('refreshAll').addEventListener('click',refreshAllNow);
 
 render();
+paintUsage();
 // Automaatne esmalaadimine (paralleelselt) + värskendus iga 5 min
 refreshAllNow();
 setInterval(refreshAllNow,5*60*1000);
