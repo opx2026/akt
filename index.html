@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.1</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.2</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -408,25 +408,28 @@ async function analyze(sym){
   try{
     let txt;
     if(gk){
-      // Gemini + Google'i otsing (tasuta). Proovi mitut mudelinime ja vajadusel ilma otsinguta.
+      // Gemini + Google'i otsing (tasuta). Jätab töötava mudeli meelde.
       const models=['gemini-flash-latest','gemini-2.5-flash','gemini-2.0-flash'];
+      const saved=localStorage.getItem('aktsiajalgija-gmodel');
+      const combos=[];
+      if(saved){const[m,s]=saved.split('|');combos.push([m,s==='1'])}
+      for(const m of models)for(const s of [true,false])
+        if(!(saved&&saved===m+'|'+(s?'1':'0')))combos.push([m,s]);
       let lastErr='';
       txt=null;
-      outer:
-      for(const mdl of models){
-        for(const withSearch of [true,false]){
-          const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}]};
-          if(withSearch)body.tools=[{google_search:{}}];
-          const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
-            method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(body)
-          });
-          if(!r.ok){lastErr='Gemini viga '+r.status+' ('+mdl+')';continue}
-          const j=await r.json();
-          txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
-            j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
-          if(txt)break outer;
-        }
+      for(const [mdl,withSearch] of combos){
+        const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}]};
+        if(withSearch)body.tools=[{google_search:{}}];
+        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(body)
+        });
+        if(r.status===429){throw new Error('Gemini tasuta limiit hetkel täis – oota umbes minut ja proovi uuesti')}
+        if(!r.ok){lastErr='Gemini viga '+r.status+' ('+mdl+')';continue}
+        const j=await r.json();
+        txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
+          j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
+        if(txt){localStorage.setItem('aktsiajalgija-gmodel',mdl+'|'+(withSearch?'1':'0'));break}
       }
       if(!txt)throw new Error(lastErr||'Gemini ei vastanud');
     }else{
