@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.6</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.7</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -489,30 +489,17 @@ const AI_PROMPT=(sym,name,d,news)=>{
   'KEELATUD on üldsõnalisus – iga lause peab toetuma uudistele.';
 };
 
-// Värsked uudised Yahoo RSS-ist (tasuta, ei kuluta Gemini kvooti)
+// Värsked uudised Yahoo otsingu-API-st (sama domeen, mis hindadel – töötab samade proksidega)
 async function fetchNewsText(sym){
-  const url='https://feeds.finance.yahoo.com/rss/2.0/headline?s='+encodeURIComponent(sym)+'&region=US&lang=en-US';
-  for(const p of PROXIES){
-    try{
-      const ctrl=new AbortController();
-      const tm=setTimeout(()=>ctrl.abort(),9000);
-      const r=await fetch(p(url),{signal:ctrl.signal});
-      clearTimeout(tm);
-      if(!r.ok)continue;
-      const xml=await r.text();
-      const items=[...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0,8);
-      if(!items.length)continue;
-      const pick=(s,tag)=>{const m=s.match(new RegExp('<'+tag+'>([\\s\\S]*?)<\\/'+tag+'>'));
-        return m?m[1].replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]+>/g,'').trim():''};
-      const lines=items.map(it=>{
-        const s=it[1];
-        const t=pick(s,'title'), dsc=pick(s,'description'), dt=pick(s,'pubDate');
-        return '- ['+(dt?dt.slice(0,16):'')+'] '+t+(dsc&&dsc!==t?' — '+dsc.slice(0,200):'');
-      });
-      return lines.join('\n');
-    }catch(e){}
-  }
-  return null;
+  const j=await yget('https://query1.finance.yahoo.com/v1/finance/search?q='+
+    encodeURIComponent(sym)+'&newsCount=8&quotesCount=0');
+  const items=(j&&j.news)||[];
+  if(!items.length)return null;
+  return items.slice(0,8).map(n=>{
+    const d=n.providerPublishTime?new Date(n.providerPublishTime*1000)
+      .toLocaleDateString('et-EE',{day:'numeric',month:'short',year:'numeric'}):'';
+    return '- ['+d+(n.publisher?', '+n.publisher:'')+'] '+(n.title||'');
+  }).join('\n');
 }
 
 // AI-analüüside vahemälu – sama sümboli analüüsi ei küsita uuesti 30 min jooksul
