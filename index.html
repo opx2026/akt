@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.8</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.9</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -170,7 +170,7 @@ $('testKey').addEventListener('click',async()=>{
   const out=$('testRes');
   if(!gk){out.textContent='võti puudub';out.style.color='var(--down)';return}
   out.style.color='var(--dim)';
-  const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.0-flash-lite'];
+  const models=['gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite'];
   const lines=[];
   let anyOk=false;
   for(const mdl of models){
@@ -473,9 +473,9 @@ async function analyze(sym){
       const saved=localStorage.getItem('aktsiajalgija-gmodel');
       const tries=[];
       if(saved){const[m,s]=saved.split('|');tries.push([m,s==='1'])}
-      else tries.push(['gemini-2.5-flash',true]);
-      tries.push(['gemini-2.0-flash',false]);
-      tries.push(['gemini-2.0-flash-lite',false]);
+      else tries.push(['gemini-3.5-flash',true]);
+      tries.push(['gemini-3.5-flash-lite',false]);
+      tries.push(['gemini-3.1-flash-lite',false]);
       let lastErr='',saw429=false;
       txt=null;
       for(const [mdl,withSearch] of tries.slice(0,3)){
