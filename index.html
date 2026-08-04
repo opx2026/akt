@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.3</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.4</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -199,7 +199,8 @@ $('fkey').addEventListener('change',e=>localStorage.setItem(FKEY,e.target.value.
 function hasAiKey(){return !!(localStorage.getItem(GKEY)||localStorage.getItem(AKEY))}
 
 // Gemini kasutuse loendur (ainult selle seadme päringud selle äpi kaudu)
-const G_RPD=1500, G_RPM=15;
+// 2026 tasuta tase: ~5-15 päringut/min, ~1000/päev; Google'i otsinguga 5000/kuu
+const G_RPD=1000, G_RPM=10;
 function gUsage(){
   let u;try{u=JSON.parse(localStorage.getItem('aktsiajalgija-gusage')||'{}')}catch(e){u={}}
   // Google nullib päevakvoodi keskööl Vaikse ookeani aja järgi
@@ -218,8 +219,8 @@ function paintUsage(){
   const el=$('gusage');if(!el)return;
   if(!localStorage.getItem(GKEY)){el.textContent='';return}
   const u=gUsage();
-  el.textContent='Gemini täna: '+(u.n||0)+' / '+G_RPD+' päringut · viimane minut: '+u.ts.length+' / '+G_RPM+
-    ' (loendab ainult selle seadme päringuid)';
+  el.textContent='Gemini täna: '+(u.n||0)+' / ~'+G_RPD+' · viimane minut: '+u.ts.length+' / ~'+G_RPM+
+    ' (ainult selle seadme päringud; otsinguga päringuid tasuta 5000/kuu)';
 }
 setInterval(paintUsage,15000);
 
@@ -517,7 +518,7 @@ async function analyze(sym,force){
       let lastErr='',saw429=false;
       txt=null;
       let parsed=null;
-      for(const mdl of tries.slice(0,3)){
+      for(const mdl of tries.slice(0,2)){
         const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name,dataMap[sym])}]}],
           tools:[{google_search:{}}]};
         gTrack();
