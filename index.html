@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.2</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.3</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -409,7 +409,7 @@ async function analyze(sym){
     let txt;
     if(gk){
       // Gemini + Google'i otsing (tasuta). Jätab töötava mudeli meelde.
-      const models=['gemini-flash-latest','gemini-2.5-flash','gemini-2.0-flash'];
+      const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.0-flash-lite'];
       const saved=localStorage.getItem('aktsiajalgija-gmodel');
       const combos=[];
       if(saved){const[m,s]=saved.split('|');combos.push([m,s==='1'])}
