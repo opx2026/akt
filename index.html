@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.3</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.4</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -108,9 +108,15 @@ svg{display:block}
   <details class="settings">
     <summary>⚙ AI-analüüsi seaded (valikuline)</summary>
     <p>Veebianalüüsid (Yahoo, TipRanks jt) töötavad ilma võtmeta. AI-analüüsi jaoks sisesta
-    üks võti – <b>Gemini on tasuta</b> (võti: aistudio.google.com → Get API key). Võtmed
-    salvestuvad ainult sinu telefoni.</p>
-    <input id="gkey" type="password" placeholder="Gemini võti (tasuta, soovitatud): AIza...">
+    üks võti – <b>Gemini on tasuta</b>. Võtmed salvestuvad ainult sinu telefoni.</p>
+    <p style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px">
+    <b style="color:var(--amber)">Gemini võtme hankimine (tasuta, ~1 min):</b><br>
+    1. Ava <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--amber)">aistudio.google.com/apikey</a> ja logi Google'i kontoga sisse<br>
+    2. Vajuta <b>Create API key</b><br>
+    3. Kopeeri võti (koopia ikoon võtme kõrval)<br>
+    4. Kleebi see alumisse Gemini välja – salvestub automaatselt<br>
+    <span class="dim">„Set up billing" linki pole vaja vajutada – tasuta tase töötab ilma.</span></p>
+    <input id="gkey" type="password" placeholder="Gemini võti (tasuta, soovitatud)">
     <input id="apikey" type="password" placeholder="Anthropic võti (valikuline): sk-ant-...">
     <p style="margin-bottom:0">Hinnad: valikuline <b>Finnhubi</b> võti (tasuta: finnhub.io)
     annab USA sümbolitele (MSFT, NVO jt) ametliku kiire allika; Euroopa (.DE) jääb Yahoo peale.</p>
