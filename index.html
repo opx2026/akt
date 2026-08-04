@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.7</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.8</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -325,14 +325,18 @@ async function fetchYahoo(sym,prev){
     analyst=null;analystTs=now;
     try{
       const q=await yget('https://query1.finance.yahoo.com/v10/finance/quoteSummary/'+
-        encodeURIComponent(sym)+'?modules=financialData');
-      const fd=q&&q.quoteSummary&&q.quoteSummary.result&&q.quoteSummary.result[0]&&
-        q.quoteSummary.result[0].financialData;
+        encodeURIComponent(sym)+'?modules=financialData,calendarEvents');
+      const r0=q&&q.quoteSummary&&q.quoteSummary.result&&q.quoteSummary.result[0];
+      const fd=r0&&r0.financialData;
       if(fd&&fd.recommendationKey){
         analyst={key:fd.recommendationKey,
           target:fd.targetMeanPrice&&fd.targetMeanPrice.raw,
           n:fd.numberOfAnalystOpinions&&fd.numberOfAnalystOpinions.raw};
       }
+      const ce=r0&&r0.calendarEvents&&r0.calendarEvents.earnings;
+      const ed=ce&&ce.earningsDate&&ce.earningsDate[0]&&ce.earningsDate[0].raw;
+      if(ed&&analyst)analyst.earnings=ed;
+      else if(ed)analyst={earnings:ed};
     }catch(e){}
   }
 
@@ -349,7 +353,7 @@ async function fetchYahoo(sym,prev){
 // Lõplik soovitus: analüütikute oma kui olemas, muidu tehniline
 function recOf(d){
   if(!d)return null;
-  if(d.analyst){
+  if(d.analyst&&d.analyst.key){
     const k=d.analyst.key;
     const rec=/buy/.test(k)?'OSTA':/sell|underperform/.test(k)?'MÜÜ':'HOIA';
     return {rec:rec,src:'analüütikud'};
@@ -478,12 +482,17 @@ const AI_PROMPT=(sym,name,d,news)=>{
   const ctx=d&&d.price?('Praegune hind: '+d.price+' '+(d.currency||'')+
     (d.changePct!=null?', päevamuutus '+d.changePct.toFixed(2)+'%':'')+
     (d.sig?', 52 nädala vahemik '+d.sig.lo52.toFixed(2)+'–'+d.sig.hi52.toFixed(2):'')+'. '):'';
-  return 'TÄNANE KUUPÄEV: '+today+'. Väärtpaber: '+sym+' ('+name+'). '+ctx+
-  'Allpool on VÄRSKED UUDISED selle väärtpaberi kohta. Kasuta AINULT neid uudiseid ja ülaltoodud hinnaandmeid – '+
+  const a=d&&d.analyst;
+  const extra=(a&&a.target?'Analüütikute konsensuse hinnasiht: '+a.target+' '+(d.currency||'')+
+      (a.n?' ('+a.n+' analüütikut)':'')+'. ':'')+
+    (a&&a.earnings?'Järgmine finantstulemuste avaldamine: '+
+      new Date(a.earnings*1000).toLocaleDateString('et-EE',{day:'numeric',month:'long',year:'numeric'})+'. ':'');
+  return 'TÄNANE KUUPÄEV: '+today+'. Väärtpaber: '+sym+' ('+name+'). '+ctx+extra+
+  'Allpool on VÄRSKED UUDISED selle väärtpaberi kohta. Kasuta AINULT neid uudiseid ja ülaltoodud andmeid – '+
   'ÄRA kasuta oma treeningandmeid, need on vananenud.\n\nUUDISED:\n'+news+'\n\n'+
   'Vasta AINULT JSON-iga, ilma markdown-vormistuseta: '+
   '{"summary":"2-4 lauset eesti keeles: mis konkreetsed sündmused uudiste põhjal hinda mõjutavad, koos kuupäevade ja numbritega",'+
-  '"forecast":"2-3 lauset eesti keeles: hinnasiht kui uudistes mainitud, järgmine oluline sündmus/kuupäev ja peamine konkreetne risk uudiste põhjal",'+
+  '"forecast":"2-3 lauset eesti keeles: kasuta ülaltoodud analüütikute hinnasihti ja tulemuste kuupäeva kui need on antud (võrdle hinnasihti praeguse hinnaga protsentides), lisaks peamine konkreetne risk uudiste põhjal",'+
   '"sentiment":"positiivne|neutraalne|negatiivne"} '+
   'Kui uudistes mingi info puudub (nt hinnasiht), jäta see lihtsalt mainimata – ära mõtle midagi juurde. '+
   'KEELATUD on üldsõnalisus – iga lause peab toetuma uudistele.';
