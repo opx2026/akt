@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.4</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.5</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -421,7 +421,7 @@ async function analyze(sym){
       if(saved){const[m,s]=saved.split('|');combos.push([m,s==='1'])}
       for(const m of models)for(const s of [true,false])
         if(!(saved&&saved===m+'|'+(s?'1':'0')))combos.push([m,s]);
-      let lastErr='';
+      let lastErr='',saw429=false;
       txt=null;
       for(const [mdl,withSearch] of combos){
         const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}]};
@@ -430,14 +430,14 @@ async function analyze(sym){
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify(body)
         });
-        if(r.status===429){throw new Error('Gemini tasuta limiit hetkel täis – oota umbes minut ja proovi uuesti')}
+        if(r.status===429){saw429=true;lastErr='Gemini limiit ('+mdl+')';continue}
         if(!r.ok){lastErr='Gemini viga '+r.status+' ('+mdl+')';continue}
         const j=await r.json();
         txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
           j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
         if(txt){localStorage.setItem('aktsiajalgija-gmodel',mdl+'|'+(withSearch?'1':'0'));break}
       }
-      if(!txt)throw new Error(lastErr||'Gemini ei vastanud');
+      if(!txt)throw new Error(saw429?'Gemini tasuta limiit hetkel täis – oota umbes minut ja proovi uuesti':(lastErr||'Gemini ei vastanud'));
     }else{
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
