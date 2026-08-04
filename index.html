@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.7</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v2.8</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -118,7 +118,7 @@ svg{display:block}
     <span class="dim">„Set up billing" linki pole vaja vajutada – tasuta tase töötab ilma.</span></p>
     <input id="gkey" type="password" placeholder="Gemini võti (tasuta, soovitatud)">
     <button class="btn-outline" id="testKey" style="margin-top:8px">Testi Gemini võtit</button>
-    <span id="testRes" style="margin-left:8px;font-size:13px"></span>
+    <span id="testRes" style="display:block;margin-top:8px;font-size:13px;line-height:1.5"></span>
     <input id="apikey" type="password" placeholder="Anthropic võti (valikuline): sk-ant-...">
     <p style="margin-bottom:0">Hinnad: valikuline <b>Finnhubi</b> võti (tasuta: finnhub.io)
     annab USA sümbolitele (MSFT, NVO jt) ametliku kiire allika; Euroopa (.DE) jääb Yahoo peale.</p>
@@ -169,18 +169,28 @@ $('testKey').addEventListener('click',async()=>{
   const gk=localStorage.getItem(GKEY)||$('gkey').value.trim();
   const out=$('testRes');
   if(!gk){out.textContent='võti puudub';out.style.color='var(--down)';return}
-  out.textContent='testin…';out.style.color='var(--dim)';
-  try{
-    const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key='+encodeURIComponent(gk),{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({contents:[{parts:[{text:'Vasta ühe sõnaga: OK'}]}]})
-    });
-    if(r.ok){out.textContent='✓ võti töötab, limiit vaba';out.style.color='var(--up)';
-      localStorage.removeItem('aktsiajalgija-ai429');}
-    else if(r.status===429){out.textContent='võti OK, aga limiit täis (429)';out.style.color='var(--amber)'}
-    else if(r.status===400||r.status===403){out.textContent='võti vigane ('+r.status+') – kontrolli kopeerimist';out.style.color='var(--down)'}
-    else{out.textContent='viga '+r.status;out.style.color='var(--down)'}
-  }catch(e){out.textContent='võrguviga';out.style.color='var(--down)'}
+  out.style.color='var(--dim)';
+  const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-2.0-flash-lite'];
+  const lines=[];
+  let anyOk=false;
+  for(const mdl of models){
+    out.textContent='testin '+mdl+'…';
+    try{
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{parts:[{text:'Vasta ühe sõnaga: OK'}]}]})
+      });
+      if(r.ok){lines.push('✓ '+mdl+' töötab');anyOk=true}
+      else{
+        let msg='';
+        try{const j=await r.json();msg=(j.error&&j.error.message||'').slice(0,120)}catch(e){}
+        lines.push('✗ '+mdl+' → '+r.status+(msg?': '+msg:''));
+      }
+    }catch(e){lines.push('✗ '+mdl+' → võrguviga')}
+  }
+  out.style.color=anyOk?'var(--up)':'var(--down)';
+  out.innerHTML=lines.map(esc).join('<br>');
+  if(anyOk)localStorage.removeItem('aktsiajalgija-ai429');
 });
 $('fkey').value=localStorage.getItem(FKEY)||'';
 $('fkey').addEventListener('change',e=>localStorage.setItem(FKEY,e.target.value.trim()));
