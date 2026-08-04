@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.2</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.3</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -458,15 +458,19 @@ async function refreshOne(sym){
 function refreshAllNow(){tickers.forEach(t=>refreshOne(t.symbol))}
 
 const AI_PROMPT=(sym,name,d)=>{
+  const today=new Date().toLocaleDateString('et-EE',{day:'numeric',month:'long',year:'numeric'});
   const ctx=d&&d.price?('Praegune hind: '+d.price+' '+(d.currency||'')+
     (d.changePct!=null?', päevamuutus '+d.changePct.toFixed(2)+'%':'')+
     (d.sig?', 52 nädala vahemik '+d.sig.lo52.toFixed(2)+'–'+d.sig.hi52.toFixed(2):'')+'. '):'';
-  return 'Otsi veebist viimased uudised ja analüütikute hinnangud väärtpaberi kohta '+sym+' ('+name+'). '+ctx+
+  return 'TÄNANE KUUPÄEV: '+today+'. Otsi veebist viimased uudised ja analüütikute hinnangud väärtpaberi kohta '+sym+' ('+name+'). '+ctx+
+  'KRIITILINE: kasuta AINULT veebiotsingu tulemusi. Sinu treeningandmed on vananenud – ära kasuta neid. '+
+  'Kui sa veebiotsingut teha ei saa, vasta {"summary":"OTSING PUUDUB","forecast":"","sentiment":"neutraalne"}. '+
   'Vasta AINULT JSON-iga, ilma markdown-vormistuseta: '+
-  '{"summary":"2-4 lauset eesti keeles AINULT konkreetsete faktidega: mis sündmused (tulemused, prognoosid, tooted, tehingud, regulatsioonid) hinda viimastel nädalatel liigutasid, koos kuupäevade ja numbritega",'+
-  '"forecast":"2-3 lauset eesti keeles: analüütikute konsensuse hinnasiht numbrina kui leidsid, järgmine oluline sündmus/kuupäev (nt tulemuste avaldamine) ja peamine konkreetne risk",'+
+  '{"summary":"2-4 lauset eesti keeles AINULT konkreetsete faktidega viimase 1-2 kuu kohta: mis sündmused (tulemused, prognoosid, tooted, tehingud, regulatsioonid) hinda liigutasid, koos kuupäevade ja numbritega",'+
+  '"forecast":"2-3 lauset eesti keeles: analüütikute konsensuse hinnasiht numbrina, järgmine oluline sündmus/kuupäev (nt tulemuste avaldamine) ja peamine konkreetne risk",'+
   '"sentiment":"positiivne|neutraalne|negatiivne"} '+
-  'KEELATUD on üldsõnalisus nagu "turg on muutlik", "investorid jälgivad", "aktsia võib tõusta või langeda" – iga lause peab sisaldama fakti, numbrit või kuupäeva.';
+  'Kõik kuupäevad peavad olema kooskõlas tänase kuupäevaga ('+today+') – ära nimeta tulevikusündmusi minevikus toimunuks ega vastupidi. '+
+  'KEELATUD on üldsõnalisus nagu "turg on muutlik", "investorid jälgivad" – iga lause peab sisaldama fakti, numbrit või kuupäeva.';
 };
 
 // AI-analüüside vahemälu – sama sümboli analüüsi ei küsita uuesti 30 min jooksul
@@ -503,18 +507,19 @@ async function analyze(sym,force){
   try{
     let txt;
     if(gk){
-      // Maksimaalselt 3 katset: eelistatud mudel, siis 2 kerget ilma otsinguta
+      // Kõik katsed Google'i otsinguga – ilma otsinguta analüüs on vananenud ja väärtusetu
       const saved=localStorage.getItem('aktsiajalgija-gmodel');
+      const savedM=saved?saved.split('|')[0]:null;
       const tries=[];
-      if(saved){const[m,s]=saved.split('|');tries.push([m,s==='1'])}
-      else tries.push(['gemini-3.5-flash',true]);
-      tries.push(['gemini-3.5-flash-lite',false]);
-      tries.push(['gemini-3.1-flash-lite',false]);
+      if(savedM)tries.push(savedM);
+      for(const m of ['gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite'])
+        if(m!==savedM)tries.push(m);
       let lastErr='',saw429=false;
       txt=null;
-      for(const [mdl,withSearch] of tries.slice(0,3)){
-        const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name,dataMap[sym])}]}]};
-        if(withSearch)body.tools=[{google_search:{}}];
+      let parsed=null;
+      for(const mdl of tries.slice(0,3)){
+        const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name,dataMap[sym])}]}],
+          tools:[{google_search:{}}]};
         gTrack();
         const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
           method:'POST',headers:{'Content-Type':'application/json'},
@@ -523,14 +528,22 @@ async function analyze(sym,force){
         if(r.status===429){saw429=true;lastErr='Gemini limiit ('+mdl+')';continue}
         if(!r.ok){lastErr='Gemini viga '+r.status+' ('+mdl+')';continue}
         const j=await r.json();
-        txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
+        const cand=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
           j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
-        if(txt){localStorage.setItem('aktsiajalgija-gmodel',mdl+'|'+(withSearch?'1':'0'));break}
+        if(!cand){lastErr='tühi vastus ('+mdl+')';continue}
+        try{
+          const p=parseAiJson(cand);
+          if((p.summary||'').includes('OTSING PUUDUB')){lastErr='mudel '+mdl+' ei saanud otsingut kasutada';continue}
+          parsed=p;txt=cand;
+          localStorage.setItem('aktsiajalgija-gmodel',mdl+'|1');
+          break;
+        }catch(e){lastErr='vigane JSON ('+mdl+')';continue}
       }
-      if(!txt){
+      if(!parsed){
         if(saw429)localStorage.setItem('aktsiajalgija-ai429',String(Date.now()));
         throw new Error(saw429?'Gemini tasuta limiit hetkel täis – oota umbes minut ja proovi uuesti':(lastErr||'Gemini ei vastanud'));
       }
+      analysis[sym]=parsed;
     }else{
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
