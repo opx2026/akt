@@ -408,18 +408,27 @@ async function analyze(sym){
   try{
     let txt;
     if(gk){
-      // Gemini + Google'i otsing (tasuta)
-      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(gk),{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}],
-          tools:[{google_search:{}}]
-        })
-      });
-      if(!r.ok)throw new Error('Gemini viga '+r.status);
-      const j=await r.json();
-      txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
-        j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
+      // Gemini + Google'i otsing (tasuta). Proovi mitut mudelinime ja vajadusel ilma otsinguta.
+      const models=['gemini-flash-latest','gemini-2.5-flash','gemini-2.0-flash'];
+      let lastErr='';
+      txt=null;
+      outer:
+      for(const mdl of models){
+        for(const withSearch of [true,false]){
+          const body={contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}]};
+          if(withSearch)body.tools=[{google_search:{}}];
+          const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+mdl+':generateContent?key='+encodeURIComponent(gk),{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(body)
+          });
+          if(!r.ok){lastErr='Gemini viga '+r.status+' ('+mdl+')';continue}
+          const j=await r.json();
+          txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
+            j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
+          if(txt)break outer;
+        }
+      }
+      if(!txt)throw new Error(lastErr||'Gemini ei vastanud');
     }else{
       const r=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
