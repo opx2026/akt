@@ -91,7 +91,7 @@ svg{display:block}
 <body>
 <header>
   <div>
-    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.5</span></div>
+    <div class="eyebrow">● reaalajas · <span style="color:var(--text)">v3.6</span></div>
     <h1>Aktsiajälgija</h1>
   </div>
   <button class="btn-primary" id="refreshAll" style="margin-left:auto">Uuenda kõiki</button>
@@ -143,6 +143,21 @@ svg{display:block}
   <b>Telefoni lisamine:</b> Chrome'i menüü (⋮) → „Lisa avakuvale".</p>
 </main>
 
+<script>
+// Nähtav veapüüdja – kõik JS vead ilmuvad ekraani ülaossa punase ribana
+window.addEventListener('error',e=>{
+  const b=document.createElement('div');
+  b.style.cssText='background:#5c1f1f;color:#ffd7d7;padding:8px 12px;font-size:12px;font-family:monospace;word-break:break-all';
+  b.textContent='JS VIGA: '+e.message+' ('+(e.filename||'').split('/').pop()+':'+e.lineno+')';
+  document.body.prepend(b);
+});
+window.addEventListener('unhandledrejection',e=>{
+  const b=document.createElement('div');
+  b.style.cssText='background:#5c1f1f;color:#ffd7d7;padding:8px 12px;font-size:12px;font-family:monospace;word-break:break-all';
+  b.textContent='PROMISE VIGA: '+(e.reason&&e.reason.message||e.reason);
+  document.body.prepend(b);
+});
+</script>
 <script>
 const KEY='aktsiajalgija-list', AKEY='aktsiajalgija-apikey', GKEY='aktsiajalgija-gkey', FKEY='aktsiajalgija-fkey';
 const DEFAULTS=[
