@@ -106,11 +106,15 @@ svg{display:block}
   </div>
 
   <details class="settings">
-    <summary>⚙ Analüüsi seaded (valikuline)</summary>
-    <p>Veebianalüüsid (Yahoo, TipRanks jt) töötavad ilma võtmeta – need on iga instrumendi
-    + nupu all. Kui soovid lisaks Claude'i kokkuvõtvat analüüsi otse äpis, sisesta Anthropicu
-    API-võti. Võti salvestub ainult sinu telefoni.</p>
-    <input id="apikey" type="password" placeholder="sk-ant-...">
+    <summary>⚙ AI-analüüsi seaded (valikuline)</summary>
+    <p>Veebianalüüsid (Yahoo, TipRanks jt) töötavad ilma võtmeta. AI-analüüsi jaoks sisesta
+    üks võti – <b>Gemini on tasuta</b> (võti: aistudio.google.com → Get API key). Võtmed
+    salvestuvad ainult sinu telefoni.</p>
+    <input id="gkey" type="password" placeholder="Gemini võti (tasuta, soovitatud): AIza...">
+    <input id="apikey" type="password" placeholder="Anthropic võti (valikuline): sk-ant-...">
+    <p style="margin-bottom:0">Hinnad: valikuline <b>Finnhubi</b> võti (tasuta: finnhub.io)
+    annab USA sümbolitele (MSFT, NVO jt) ametliku kiire allika; Euroopa (.DE) jääb Yahoo peale.</p>
+    <input id="fkey" type="password" placeholder="Finnhub võti (valikuline)">
   </details>
 
   <div id="summary"></div>
@@ -131,7 +135,7 @@ svg{display:block}
 </main>
 
 <script>
-const KEY='aktsiajalgija-list', AKEY='aktsiajalgija-apikey';
+const KEY='aktsiajalgija-list', AKEY='aktsiajalgija-apikey', GKEY='aktsiajalgija-gkey', FKEY='aktsiajalgija-fkey';
 const DEFAULTS=[
   {symbol:'MSFT',name:'Microsoft'},
   {symbol:'SXR8.DE',name:'iShares Core S&P 500'},
@@ -139,11 +143,18 @@ const DEFAULTS=[
   {symbol:'NVO',name:'Novo Nordisk'}
 ];
 let tickers=JSON.parse(localStorage.getItem(KEY)||'null')||DEFAULTS;
-let dataMap={},expanded={},analysis={};
+let dataMap={},expanded={},analysis={},loadF={},errF={};
+try{dataMap=JSON.parse(localStorage.getItem('aktsiajalgija-cache')||'{}')}catch(e){dataMap={}}
+function saveCache(){try{localStorage.setItem('aktsiajalgija-cache',JSON.stringify(dataMap))}catch(e){}}
 
 const $=id=>document.getElementById(id);
 $('apikey').value=localStorage.getItem(AKEY)||'';
 $('apikey').addEventListener('change',e=>localStorage.setItem(AKEY,e.target.value.trim()));
+$('gkey').value=localStorage.getItem(GKEY)||'';
+$('gkey').addEventListener('change',e=>localStorage.setItem(GKEY,e.target.value.trim()));
+$('fkey').value=localStorage.getItem(FKEY)||'';
+$('fkey').addEventListener('change',e=>localStorage.setItem(FKEY,e.target.value.trim()));
+function hasAiKey(){return !!(localStorage.getItem(GKEY)||localStorage.getItem(AKEY))}
 
 function save(){localStorage.setItem(KEY,JSON.stringify(tickers))}
 
@@ -178,21 +189,31 @@ async function yget(url){
   return null;
 }
 
-async function fetchYahoo(sym){
+async function fetchYahoo(sym,prev){
   const base='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym);
-  const [intra,yearly]=await Promise.all([
+  const now=Date.now();
+  const fk=localStorage.getItem(FKEY);
+  const useFinnhub=fk&&!sym.includes('.'); // USA sümbolid ilma punktita
+
+  // Aastaandmeid (signaali jaoks) uuenda max iga 6 h järel
+  const needYear=range!=='1y'&&!(prev&&prev.sigTs&&now-prev.sigTs<6*3600*1000);
+  const [fh,intra,yearly]=await Promise.all([
+    useFinnhub?fetch('https://finnhub.io/api/v1/quote?symbol='+encodeURIComponent(sym)+
+      '&token='+encodeURIComponent(fk)).then(r=>r.ok?r.json():null).catch(()=>null):Promise.resolve(null),
     yget(base+'?'+RANGES[range]),
-    range==='1y'?Promise.resolve(null):yget(base+'?range=1y&interval=1d')
+    needYear?yget(base+'?range=1y&interval=1d'):Promise.resolve(null)
   ]);
   const res=intra&&intra.chart&&intra.chart.result&&intra.chart.result[0];
-  if(!res)throw new Error('andmeid ei saadud');
-  const meta=res.meta;
-  const closes=(res.indicators.quote[0].close||[]).filter(v=>v!=null);
-  const price=meta.regularMarketPrice;
-  const prev=meta.chartPreviousClose||meta.previousClose;
+  if(!res&&!(fh&&fh.c))throw new Error('andmeid ei saadud');
+  const meta=res?res.meta:{};
+  const closes=res?(res.indicators.quote[0].close||[]).filter(v=>v!=null):[];
+  // Finnhubi hind on eelistatud (ametlik, värskem), muidu Yahoo
+  const price=(fh&&fh.c)?fh.c:meta.regularMarketPrice;
+  const prevClose=(fh&&fh.pc)?fh.pc:(meta.chartPreviousClose||meta.previousClose);
 
   // Tehniline signaal aastastest päevaandmetest
-  let sig=null;
+  let sig=prev&&!needYear&&range!=='1y'?prev.sig:null;
+  let sigTs=prev&&!needYear&&range!=='1y'?prev.sigTs:null;
   const ysrc=range==='1y'?intra:yearly;
   const yres=ysrc&&ysrc.chart&&ysrc.chart.result&&ysrc.chart.result[0];
   if(yres){
@@ -210,36 +231,41 @@ async function fetchYahoo(sym){
       const pos52=(price-lo52)/((hi52-lo52)||1)*100;
       sig={rec:score>=2?'OSTA':score<=-2?'MÜÜ':'HOIA',score:score,why:why,
         hi52:hi52,lo52:lo52,pos52:pos52,mom3k:mom3k};
+      sigTs=now;
     }
   }
 
-  // Analüütikute konsensus (töötab aktsiatel, ETF-idel enamasti mitte)
-  let analyst=null;
-  try{
-    const q=await yget('https://query1.finance.yahoo.com/v10/finance/quoteSummary/'+
-      encodeURIComponent(sym)+'?modules=financialData');
-    const fd=q&&q.quoteSummary&&q.quoteSummary.result&&q.quoteSummary.result[0]&&
-      q.quoteSummary.result[0].financialData;
-    if(fd&&fd.recommendationKey){
-      analyst={key:fd.recommendationKey,
-        target:fd.targetMeanPrice&&fd.targetMeanPrice.raw,
-        n:fd.numberOfAnalystOpinions&&fd.numberOfAnalystOpinions.raw};
-    }
-  }catch(e){}
+  // Analüütikute konsensus – uuenda max iga 1 h järel
+  let analyst=prev?prev.analyst:null;
+  let analystTs=prev?prev.analystTs:null;
+  if(!(analystTs&&now-analystTs<3600*1000)){
+    analyst=null;analystTs=now;
+    try{
+      const q=await yget('https://query1.finance.yahoo.com/v10/finance/quoteSummary/'+
+        encodeURIComponent(sym)+'?modules=financialData');
+      const fd=q&&q.quoteSummary&&q.quoteSummary.result&&q.quoteSummary.result[0]&&
+        q.quoteSummary.result[0].financialData;
+      if(fd&&fd.recommendationKey){
+        analyst={key:fd.recommendationKey,
+          target:fd.targetMeanPrice&&fd.targetMeanPrice.raw,
+          n:fd.numberOfAnalystOpinions&&fd.numberOfAnalystOpinions.raw};
+      }
+    }catch(e){}
+  }
 
   return {
-    price:price, currency:meta.currency,
-    changePct: prev?((price-prev)/prev*100):null,
+    price:price, currency:meta.currency||(useFinnhub?'USD':''),
+    changePct: prevClose?((price-prevClose)/prevClose*100):null,
     series: closes.length>1?closes:null,
     seriesPct: closes.length>1?(closes[closes.length-1]/closes[0]-1)*100:null,
-    sig:sig, analyst:analyst,
+    sig:sig, sigTs:sigTs, analyst:analyst, analystTs:analystTs,
     time:new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})
   };
 }
 
 // Lõplik soovitus: analüütikute oma kui olemas, muidu tehniline
 function recOf(d){
-  if(!d||d==='loading'||d==='error')return null;
+  if(!d)return null;
   if(d.analyst){
     const k=d.analyst.key;
     const rec=/buy/.test(k)?'OSTA':/sell|underperform/.test(k)?'MÜÜ':'HOIA';
@@ -264,8 +290,7 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 
 function renderSummary(){
   const el=$('summary');
-  const loaded=tickers.map(t=>({t:t,d:dataMap[t.symbol]}))
-    .filter(x=>x.d&&x.d!=='loading'&&x.d!=='error');
+  const loaded=tickers.map(t=>({t:t,d:dataMap[t.symbol]})).filter(x=>x.d);
   if(!loaded.length){el.innerHTML='';return}
   const chgs=loaded.filter(x=>x.d.changePct!=null);
   const avg=chgs.length?chgs.reduce((a,x)=>a+x.d.changePct,0)/chgs.length:0;
@@ -306,12 +331,13 @@ function render(){
           '<div class="nm">'+esc(t.name)+'</div>'+
         '</div>'+
         (d&&d.series?spark(d.series,range==='1d'?d.changePct:d.seriesPct):'')+
-        '<div class="right">'+
-          (d==='loading'?'<div class="price dim" style="font-size:14px">otsin…</div>':
-           d==='error'?'<div class="pct down">ei saanud andmeid<br><button class="btn-outline" data-act="refresh" style="margin-top:4px;padding:4px 10px;font-size:12px">proovi uuesti</button></div>':
-           d?'<div class="price">'+d.price.toLocaleString('et-EE',{minimumFractionDigits:2,maximumFractionDigits:2})+
+        '<div class="right"'+(loadF[t.symbol]&&d?' style="opacity:.55"':'')+'>'+
+          (d?'<div class="price">'+d.price.toLocaleString('et-EE',{minimumFractionDigits:2,maximumFractionDigits:2})+
               ' <span class="dim" style="font-size:12px">'+esc(d.currency||'')+'</span></div>'+
-              '<div class="pct '+pctCls+'">'+arrow+' '+(d.changePct!=null?Math.abs(d.changePct).toFixed(2)+'%':'')+'</div>':
+              (loadF[t.symbol]?'<div class="pct dim">uuendan…</div>':
+               '<div class="pct '+pctCls+'">'+arrow+' '+(d.changePct!=null?Math.abs(d.changePct).toFixed(2)+'%':'')+'</div>'):
+           loadF[t.symbol]?'<div class="price dim" style="font-size:14px">otsin…</div>':
+           errF[t.symbol]?'<div class="pct down">ei saanud andmeid<br><button class="btn-outline" data-act="refresh" style="margin-top:4px;padding:4px 10px;font-size:12px">proovi uuesti</button></div>':
            '<div class="pct dim">pole veel</div>')+
         '</div>'+
         '<div class="icons">'+
@@ -333,12 +359,12 @@ function render(){
             d.sig.lo52.toLocaleString('et-EE',{maximumFractionDigits:2})+' – max '+
             d.sig.hi52.toLocaleString('et-EE',{maximumFractionDigits:2})+')</div>':'')+
           '</div>':'')+
-        (a==='loading'?'<span class="dim">Küsin Claude\u2019ilt analüüsi…</span>':
+        (a==='loading'?'<span class="dim">Küsin AI-lt analüüsi…</span>':
          a&&a.error?'<span class="down">'+esc(a.error)+'</span>':
          a?'<div class="lbl">Analüüs</div><div>'+esc(a.summary||'')+'</div>'+
            '<div class="lbl">Prognoos</div><div>'+esc(a.forecast||'')+'</div>'+
            '<div class="lbl">Meeleolu</div><div>'+esc(a.sentiment||'')+'</div>':
-         (localStorage.getItem(AKEY)?'<button class="btn-outline" data-act="analyze">Küsi Claude\u2019i analüüsi</button>':''))+
+         (hasAiKey()?'<button class="btn-outline" data-act="analyze">Küsi AI analüüsi</button>':''))+
         '<div class="lbl">Veebianalüüsid</div><div class="links">'+
           '<a href="https://finance.yahoo.com/quote/'+encodeURIComponent(t.symbol)+'/analysis" target="_blank" rel="noopener">Yahoo analüütikud</a>'+
           '<a href="https://www.tipranks.com/stocks/'+encodeURIComponent(baseSym(t.symbol).toLowerCase())+'/forecast" target="_blank" rel="noopener">TipRanks</a>'+
@@ -353,34 +379,61 @@ function render(){
 }
 
 async function refreshOne(sym){
-  dataMap[sym]='loading';render();
-  try{dataMap[sym]=await fetchYahoo(sym)}catch(e){dataMap[sym]='error'}
-  render();
+  loadF[sym]=true;errF[sym]=false;render();
+  try{
+    dataMap[sym]=await fetchYahoo(sym,dataMap[sym]);
+    saveCache();
+  }catch(e){errF[sym]=true}
+  loadF[sym]=false;render();
+}
+function refreshAllNow(){tickers.forEach(t=>refreshOne(t.symbol))}
+
+const AI_PROMPT=(sym,name)=>'Otsi veebist värske info väärtpaberi kohta '+sym+' ('+name+
+  '). Vasta AINULT JSON-iga, ilma markdown-vormistuseta: '+
+  '{"summary":"2-3 lauset eesti keeles, mis hinda praegu mõjutab",'+
+  '"forecast":"2-3 lauset eesti keeles lühiajalisest väljavaatest",'+
+  '"sentiment":"positiivne|neutraalne|negatiivne"}';
+
+function parseAiJson(txt){
+  const c=txt.replace(/```json|```/g,'').trim();
+  const s=c.indexOf('{'),e=c.lastIndexOf('}');
+  return JSON.parse(c.slice(s,e+1));
 }
 
 async function analyze(sym){
-  const key=localStorage.getItem(AKEY);
-  if(!key)return;
+  const gk=localStorage.getItem(GKEY), ak=localStorage.getItem(AKEY);
+  if(!gk&&!ak)return;
   const t=tickers.find(x=>x.symbol===sym);
   analysis[sym]='loading';render();
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,
-        'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:800,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user',content:'Otsi veebist värske info väärtpaberi kohta '+sym+' ('+t.name+
-          '). Vasta AINULT JSON-iga: {"summary":"2-3 lauset eesti keeles, mis hinda praegu mõjutab",'+
-          '"forecast":"2-3 lauset eesti keeles lühiajalisest väljavaatest",'+
-          '"sentiment":"positiivne|neutraalne|negatiivne"}'}]})
-    });
-    if(!r.ok)throw new Error('API viga '+r.status);
-    const j=await r.json();
-    const txt=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n')
-      .replace(/```json|```/g,'').trim();
-    const s=txt.indexOf('{'),e=txt.lastIndexOf('}');
-    analysis[sym]=JSON.parse(txt.slice(s,e+1));
+    let txt;
+    if(gk){
+      // Gemini + Google'i otsing (tasuta)
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(gk),{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          contents:[{parts:[{text:AI_PROMPT(sym,t.name)}]}],
+          tools:[{google_search:{}}]
+        })
+      });
+      if(!r.ok)throw new Error('Gemini viga '+r.status);
+      const j=await r.json();
+      txt=((j.candidates&&j.candidates[0]&&j.candidates[0].content&&
+        j.candidates[0].content.parts)||[]).map(p=>p.text||'').join('\n');
+    }else{
+      const r=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':ak,
+          'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:800,
+          tools:[{type:'web_search_20250305',name:'web_search'}],
+          messages:[{role:'user',content:AI_PROMPT(sym,t.name)}]})
+      });
+      if(!r.ok)throw new Error('API viga '+r.status);
+      const j=await r.json();
+      txt=(j.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n');
+    }
+    analysis[sym]=parseAiJson(txt);
   }catch(e){analysis[sym]={error:'Analüüs ebaõnnestus: '+e.message}}
   render();
 }
@@ -414,7 +467,7 @@ $('rangebar').addEventListener('click',e=>{
   const b=e.target.closest('.rb');if(!b||b.dataset.range===range)return;
   range=b.dataset.range;localStorage.setItem('aktsiajalgija-range',range);
   paintRange();
-  (async()=>{for(const t of tickers)await refreshOne(t.symbol)})();
+  refreshAllNow();
 });
 paintRange();
 
@@ -429,14 +482,12 @@ function add(){
   $('sym').value='';$('nm').value='';save();render();refreshOne(s);
 }
 
-$('refreshAll').addEventListener('click',async()=>{
-  for(const t of tickers)await refreshOne(t.symbol);
-});
+$('refreshAll').addEventListener('click',refreshAllNow);
 
 render();
-// Automaatne esmalaadimine + värskendus iga 5 min
-(async()=>{for(const t of tickers)await refreshOne(t.symbol)})();
-setInterval(()=>{tickers.forEach(t=>refreshOne(t.symbol))},5*60*1000);
+// Automaatne esmalaadimine (paralleelselt) + värskendus iga 5 min
+refreshAllNow();
+setInterval(refreshAllNow,5*60*1000);
 </script>
 </body>
 </html>
