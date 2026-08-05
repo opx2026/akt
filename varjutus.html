@@ -74,6 +74,15 @@ table.times tr:first-child td { border-top: none; }
 table.times td:first-child { color: var(--sea); }
 table.times td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 td.below { color: #a0a0a0 !important; text-decoration: line-through; }
+.safety {
+  font-size: 13px;
+  background: #fbecec;
+  border: 1px solid #e0b1b1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.5;
+  color: #7a1f1f;
+}
 .warn {
   font-size: 13px;
   background: #fdf3e3;
@@ -101,6 +110,7 @@ td.below { color: #a0a0a0 !important; text-decoration: line-through; }
 <main>
   <div id="map"></div>
   <aside>
+    <div class="safety"><strong>Silmade ohutus:</strong> ära vaata otse päikesesse ilma kaitseta — ka siis, kui suurem osa kettast on kaetud. Kasuta sertifitseeritud varjutusprille (ISO 12312-2) või keevitaja klaasi nr 14. Tavalised päikeseprillid, tahmaklaas ega fotofilm ei kaitse. Binokli, teleskoobi või kaamera ette käib ainult objektiivipoolne päikesefilter — varjutusprillid okulaari taga ei kaitse.</div>
     <div class="type partial" id="type">–</div>
     <div style="background:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; display:flex; justify-content:center;">
       <svg id="sunviz" viewBox="-1.6 -1.6 3.2 3.2" width="160" height="160" role="img" aria-label="Päikeseketas maksimumhetkel">
@@ -129,7 +139,7 @@ td.below { color: #a0a0a0 !important; text-decoration: line-through; }
       <div><span style="background:var(--umbra);"></span>Täisvarjutuse vöönd (u 290 km lai)</div>
       <div><span style="background:var(--corona);"></span>Keskjoon</div>
     </div>
-    <p class="hint">Kellaajad on Eesti suveajas (EEST, UTC+3). Arvutus põhineb NASA Besseli elementidel (Espenak, ΔT = 75,4 s), täpsus ~1 min. Vaata päikest ainult varjutusprillide või filtriga!</p>
+    <p class="hint">Kellaajad on Eesti suveajas (EEST, UTC+3). Arvutus põhineb NASA Besseli elementidel (Espenak, ΔT = 75,4 s), täpsus ~1 min.</p>
   </aside>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
