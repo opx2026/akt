@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Päikeseloojangu suund — Saaremaa</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1c2733;
+  --sea: #3d5a73;
+  --mist: #f2f0ea;
+  --sunset: #d85a30;
+  --sunrise: #e8a020;
+  --line: #d8d4ca;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Archivo', system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--mist);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  padding: 14px 20px 10px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+header h1 {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 20px;
+}
+header p { font-size: 13px; color: var(--sea); }
+main { flex: 1; display: flex; min-height: 0; }
+#map { flex: 1; min-width: 0; }
+aside {
+  width: 300px;
+  padding: 18px;
+  background: var(--mist);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+label.field { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sea); display: block; margin-bottom: 6px; }
+input[type="date"] {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.presets button:hover { border-color: var(--sea); }
+.stat {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.stat .k { font-size: 12px; color: var(--sea); margin-bottom: 2px; }
+.stat .v { font-family: 'Fraunces', serif; font-size: 26px; font-weight: 500; }
+.stat .s { font-size: 13px; color: var(--sea); }
+.stat.sunset { border-left: 4px solid var(--sunset); border-radius: 0 8px 8px 0; }
+.stat.sunrise { border-left: 4px solid var(--sunrise); border-radius: 0 8px 8px 0; }
+.hint { font-size: 12.5px; color: var(--sea); line-height: 1.5; }
+.coords { font-size: 12px; color: var(--sea); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  main { flex-direction: column; }
+  #map { height: 55vh; flex: none; }
+  aside { width: 100%; border-left: none; border-top: 1px solid var(--line); }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Päikeseloojangu suund</h1>
+  <p>Klõpsa kaardil, et valida vaatluspunkt. Jooned näitavad tõusu ja loojangu asimuuti.</p>
+</header>
+<main>
+  <div id="map"></div>
+  <aside>
+    <div>
+      <label class="field" for="date">Kuupäev</label>
+      <input type="date" id="date">
+    </div>
+    <div class="presets">
+      <button data-d="today">Täna</button>
+      <button data-d="06-21">Suvine pööripäev</button>
+      <button data-d="09-22">Sügisene võrdpäevsus</button>
+      <button data-d="12-21">Talvine pööripäev</button>
+    </div>
+    <div class="stat sunset">
+      <div class="k">Loojang</div>
+      <div class="v" id="setTime">–</div>
+      <div class="s" id="setAz">–</div>
+    </div>
+    <div class="stat sunrise">
+      <div class="k">Tõus</div>
+      <div class="v" id="riseTime">–</div>
+      <div class="s" id="riseAz">–</div>
+    </div>
+    <div class="stat">
+      <div class="k">Päeva pikkus</div>
+      <div class="v" id="dayLen">–</div>
+      <div class="s" id="coords" class="coords">–</div>
+    </div>
+    <p class="hint">Kollane kaar näitab päikese teekonda horisondil. Asimuut on kraadides põhjasuunast päripäeva (270° = täpselt läänes). Ajad on sinu seadme ajavööndis.</p>
+  </aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+<script>
+const map = L.map('map').setView([58.2528, 22.4869], 10);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+let point = L.latLng(58.2528, 22.4869);
+const marker = L.marker(point, { draggable: true }).addTo(map);
+let setLine = null, riseLine = null, arcLine = null;
+
+const dateInput = document.getElementById('date');
+dateInput.valueAsDate = new Date();
+
+function dest(latlng, azDeg, km) {
+  const R = 6371, brng = azDeg * Math.PI / 180, d = km / R;
+  const lat1 = latlng.lat * Math.PI / 180, lon1 = latlng.lng * Math.PI / 180;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+  return L.latLng(lat2 * 180 / Math.PI, lon2 * 180 / Math.PI);
+}
+
+function azDeg(time, lat, lng) {
+  const p = SunCalc.getPosition(time, lat, lng);
+  return ((p.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+}
+
+function dirName(az) {
+  const dirs = ['põhjas (N)', 'kirdes (NE)', 'idas (E)', 'kagus (SE)', 'lõunas (S)', 'edelas (SW)', 'läänes (W)', 'loodes (NW)'];
+  return dirs[Math.round(az / 45) % 8];
+}
+
+function fmt(t) {
+  return t.toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function update() {
+  const d = dateInput.valueAsDate || new Date();
+  const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+  const times = SunCalc.getTimes(noon, point.lat, point.lng);
+
+  [setLine, riseLine, arcLine].forEach(l => l && map.removeLayer(l));
+  setLine = riseLine = arcLine = null;
+
+  document.getElementById('coords').textContent =
+    point.lat.toFixed(4) + '° N, ' + point.lng.toFixed(4) + '° E';
+
+  if (isNaN(times.sunset) || isNaN(times.sunrise)) {
+    document.getElementById('setTime').textContent = '–';
+    document.getElementById('setAz').textContent = 'polaaröö või -päev';
+    document.getElementById('riseTime').textContent = '–';
+    document.getElementById('riseAz').textContent = '';
+    document.getElementById('dayLen').textContent = '–';
+    return;
+  }
+
+  const setA = azDeg(times.sunset, point.lat, point.lng);
+  const riseA = azDeg(times.sunrise, point.lat, point.lng);
+
+  setLine = L.polyline([point, dest(point, setA, 30)], { color: '#d85a30', weight: 4 }).addTo(map);
+  riseLine = L.polyline([point, dest(point, riseA, 30)], { color: '#e8a020', weight: 4 }).addTo(map);
+
+  const arcPts = [];
+  const span = (setA - riseA + 360) % 360;
+  for (let i = 0; i <= 40; i++) arcPts.push(dest(point, (riseA + span * i / 40) % 360, 22));
+  arcLine = L.polyline(arcPts, { color: '#e8a020', weight: 2, dashArray: '5 6', opacity: 0.7 }).addTo(map);
+
+  document.getElementById('setTime').textContent = fmt(times.sunset);
+  document.getElementById('setAz').textContent = Math.round(setA) + '° — ' + dirName(setA);
+  document.getElementById('riseTime').textContent = fmt(times.sunrise);
+  document.getElementById('riseAz').textContent = Math.round(riseA) + '° — ' + dirName(riseA);
+
+  const len = (times.sunset - times.sunrise) / 60000;
+  document.getElementById('dayLen').textContent =
+    Math.floor(len / 60) + ' h ' + String(Math.round(len % 60)).padStart(2, '0') + ' min';
+}
+
+map.on('click', e => { point = e.latlng; marker.setLatLng(point); update(); });
+marker.on('dragend', () => { point = marker.getLatLng(); update(); });
+dateInput.addEventListener('change', update);
+document.querySelectorAll('.presets button').forEach(b => {
+  b.addEventListener('click', () => {
+    const y = new Date().getFullYear();
+    dateInput.valueAsDate = b.dataset.d === 'today' ? new Date() : new Date(y + '-' + b.dataset.d + 'T12:00:00');
+    update();
+  });
+});
+update();
+</script>
+</body>
+</html>
