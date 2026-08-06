@@ -118,6 +118,71 @@ fillPick();
 eeOnly.addEventListener('change', () => { fillPick(); onPick(); });
 
 let marker = null, peakMark = null, curLat = 58.2528, curLon = 22.4869;
+const D2Rg = Math.PI / 180;
+function dest(lat, lon, brgDeg, km) {
+  const R = 6371, b = brgDeg * D2Rg, dd = km / R, la = lat * D2Rg, lo = lon * D2Rg;
+  const la2 = Math.asin(Math.sin(la) * Math.cos(dd) + Math.cos(la) * Math.sin(dd) * Math.cos(b));
+  const lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(dd) * Math.cos(la), Math.cos(dd) - Math.sin(la) * Math.sin(la2));
+  return [la2 / D2Rg, ((lo2 / D2Rg + 540) % 360) - 180];
+}
+let riseOn = false, setOn = false;
+let dirLayers = [];
+function sunEvent(direction, searchBack) {
+  const A = Astronomy;
+  const obsv = new A.Observer(curLat, curLon, 0);
+  const c = CATALOG[+pick.value];
+  if (!c) return null;
+  const peak = new Date(c.peak);
+  let t = null;
+  try { t = A.SearchRiseSet(A.Body.Sun, obsv, direction, peak, searchBack ? -1.2 : 1.2); } catch(e) {}
+  if (!t) { try { t = A.SearchRiseSet(A.Body.Sun, obsv, direction, peak, searchBack ? 1.2 : -1.2); } catch(e) {} }
+  if (!t) return null;
+  const eq = A.Equator(A.Body.Sun, t, obsv, true, true);
+  const hor = A.Horizon(t, obsv, eq.ra, eq.dec, 'normal');
+  return { time: t.date, az: hor.azimuth };
+}
+function dirLabel(pos, color, text) {
+  return L.marker(pos, { interactive: false, icon: L.divIcon({ className: '',
+    html: '<div style="font: 500 12px Archivo, sans-serif; color:' + color + '; text-shadow: 0 0 3px #fff, 0 0 3px #fff; white-space: nowrap;">' + text + '</div>',
+    iconSize: [160, 16], iconAnchor: [0, 8] }) });
+}
+function drawSunDirs() {
+  dirLayers.forEach(l => map.removeLayer(l));
+  dirLayers = [];
+  if (riseOn) {
+    const r = sunEvent(+1, true);
+    if (r) {
+      dirLayers.push(L.polyline([[curLat, curLon], dest(curLat, curLon, r.az, 40)], { color: '#b8860b', weight: 3, dashArray: '6 6' }).addTo(map));
+      dirLayers.push(dirLabel(dest(curLat, curLon, r.az, 46), '#7a5a08', 'tõus ' + Math.round(r.az) + '° kell ' + fmtTime.format(r.time)).addTo(map));
+    }
+  }
+  if (setOn) {
+    const s = sunEvent(-1, false);
+    if (s) {
+      dirLayers.push(L.polyline([[curLat, curLon], dest(curLat, curLon, s.az, 40)], { color: '#d85a30', weight: 3, dashArray: '6 6' }).addTo(map));
+      dirLayers.push(dirLabel(dest(curLat, curLon, s.az, 46), '#993c1d', 'loojang ' + Math.round(s.az) + '° kell ' + fmtTime.format(s.time)).addTo(map));
+    }
+  }
+}
+const DirCtl = L.Control.extend({ options: { position: 'topleft' }, onAdd() {
+  const box = L.DomUtil.create('div');
+  box.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+  const mk = (label, get, set) => {
+    const b = L.DomUtil.create('button', '', box);
+    b.textContent = label;
+    b.style.cssText = 'background:#fff; border:2px solid rgba(0,0,0,0.25); border-radius:4px; padding:6px 10px; font:500 12px Archivo,sans-serif; cursor:pointer; text-align:left;';
+    L.DomEvent.on(b, 'click', e => {
+      L.DomEvent.stop(e);
+      set(!get());
+      b.style.background = get() ? '#fde3d8' : '#fff';
+      drawSunDirs();
+    });
+  };
+  mk('Tõusu suund', () => riseOn, v => riseOn = v);
+  mk('Loojangu suund', () => setOn, v => setOn = v);
+  return box;
+}});
+map.addControl(new DirCtl());
 const fmtTime = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', hour:'2-digit', minute:'2-digit' });
 const fmtDate = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', day:'2-digit', month:'2-digit', year:'numeric' });
 
@@ -152,6 +217,7 @@ function resetDisk(gray) {
 function compute() {
   const c = CATALOG[+pick.value];
   if (!c) return;
+  drawSunDirs();
   document.getElementById('coords').textContent = curLat.toFixed(4) + '° N, ' + curLon.toFixed(4) + '° E';
   const typeEl = document.getElementById('type');
   const A = Astronomy;
