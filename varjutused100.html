@@ -88,7 +88,7 @@ td.below { color:#a0a0a0 !important; text-decoration:line-through; }
     <div class="legend">
       <div><span style="background:#2b2140; opacity:0.55;"></span>Täisvari (täielik varjutus)</div>
       <div><span style="background:#b8860b; opacity:0.55;"></span>Rõngasvari (rõngakujuline)</div>
-      <div><span style="background:#d85a30; opacity:0.28; border:1px dashed #d85a30;"></span>Poolvari (osaline varjutus, päike horisondi kohal)</div>
+      <div><span style="background:transparent; border:2px dashed #d85a30; height:8px;"></span>Poolvari (osaline varjutus, päike horisondi kohal)</div>
     </div>
     <div class="safety"><strong>Silmade ohutus:</strong> ära vaata otse päikesesse ilma sertifitseeritud varjutusprillideta (ISO 12312-2). Tavalised päikeseprillid ei kaitse. Optika ette ainult objektiivipoolne päikesefilter.</div>
     <p class="hint">Kellaajad on Eesti aja järgi (arvestab suve/talveaega). Arvutus: astronomy-engine efemeriidid, täpsus ~1 min. Läbikriipsutatud aeg = päike on selleks hetkeks loojunud. <a href="varjutus.html">12.08.2026 detailvaade →</a></p>
@@ -198,8 +198,8 @@ function drawShadows() {
   const c = CATALOG[+pick.value], s = SHADOWS[pick.value];
   if (!c || !s) return;
   for (const ring of s.p)
-    shadowLayers.push(L.polygon(ring, { color:'#d85a30', weight:1, dashArray:'4 4', opacity:0.5,
-      fillColor:'#d85a30', fillOpacity:0.09, interactive:false }).addTo(map));
+    shadowLayers.push(L.polygon(ring, { color:'#d85a30', weight:2, dashArray:'6 5', opacity:0.75,
+      fill:false, interactive:false }).addTo(map));
   if (s.u) {
     const col = c.kind === 'annular' ? '#b8860b' : '#2b2140';
     shadowLayers.push(L.polygon(s.u.N.concat(s.u.S.slice().reverse()),
