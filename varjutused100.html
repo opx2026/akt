@@ -75,6 +75,8 @@ td.below { color:#a0a0a0 !important; text-decoration:line-through; }
       <div class="v" id="obs">–</div>
       <div class="s" id="mag">–</div>
     </div>
+    <label class="chk"><input type="checkbox" id="eeTime"> kellaajad Eesti aja järgi</label>
+    <div class="coords" id="tzInfo">–</div>
     <table class="times">
       <tr><td>Kuupäev</td><td id="dt">–</td></tr>
       <tr><td>Varjutus algab</td><td id="c1">–</td></tr>
@@ -84,6 +86,11 @@ td.below { color:#a0a0a0 !important; text-decoration:line-through; }
       <tr><td>Varjutus lõpeb</td><td id="c4">–</td></tr>
       <tr><td>Päikese kõrgus maksimumil</td><td id="alt">–</td></tr>
     </table>
+    <div class="stat" id="wxCard" style="display:none;">
+      <div class="k">Ilm maksimumi ajal</div>
+      <div class="v" id="wxCloud">–</div>
+      <div class="s" id="wxDetail">–</div>
+    </div>
     <div class="coords" id="coords">–</div>
     <div class="legend">
       <div><span style="background:#2b2140; opacity:0.55;"></span>Täisvari (täielik varjutus)</div>
@@ -91,7 +98,7 @@ td.below { color:#a0a0a0 !important; text-decoration:line-through; }
       <div><span style="background:transparent; border:2px dashed #d85a30; height:8px;"></span>Poolvari (osaline varjutus, päike horisondi kohal)</div>
     </div>
     <div class="safety"><strong>Silmade ohutus:</strong> ära vaata otse päikesesse ilma sertifitseeritud varjutusprillideta (ISO 12312-2). Tavalised päikeseprillid ei kaitse. Optika ette ainult objektiivipoolne päikesefilter.</div>
-    <p class="hint">Kellaajad on Eesti aja järgi (arvestab suve/talveaega). Arvutus: astronomy-engine efemeriidid, täpsus ~1 min. Läbikriipsutatud aeg = päike on selleks hetkeks loojunud. <a href="varjutus.html">12.08.2026 detailvaade →</a></p>
+    <p class="hint">Kellaajad on vaikimisi valitud koha kohalikus ajas; linnuke lülitab Eesti ajale. Ilm: Open-Meteo (prognoos või ERA5 arhiivi keskmine). Arvutus: astronomy-engine efemeriidid, täpsus ~1 min. Läbikriipsutatud aeg = päike on selleks hetkeks loojunud.</p>
   </aside>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -160,14 +167,14 @@ function drawSunDirs() {
     const r = sunEvent(+1, true);
     if (r) {
       dirLayers.push(L.polyline([[curLat, curLon], dest(curLat, curLon, r.az, 40)], { color: '#b8860b', weight: 3, dashArray: '6 6' }).addTo(map));
-      dirLayers.push(dirLabel(dest(curLat, curLon, r.az, 46), '#7a5a08', 'tõus ' + Math.round(r.az) + '° kell ' + fmtTime.format(r.time)).addTo(map));
+      dirLayers.push(dirLabel(dest(curLat, curLon, r.az, 46), '#7a5a08', 'tõus ' + Math.round(r.az) + '° kell ' + fmtT(r.time)).addTo(map));
     }
   }
   if (setOn) {
     const s = sunEvent(-1, false);
     if (s) {
       dirLayers.push(L.polyline([[curLat, curLon], dest(curLat, curLon, s.az, 40)], { color: '#d85a30', weight: 3, dashArray: '6 6' }).addTo(map));
-      dirLayers.push(dirLabel(dest(curLat, curLon, s.az, 46), '#993c1d', 'loojang ' + Math.round(s.az) + '° kell ' + fmtTime.format(s.time)).addTo(map));
+      dirLayers.push(dirLabel(dest(curLat, curLon, s.az, 46), '#993c1d', 'loojang ' + Math.round(s.az) + '° kell ' + fmtT(s.time)).addTo(map));
     }
   }
 }
@@ -206,8 +213,27 @@ function drawShadows() {
       { color:col, weight:1, fillColor:col, fillOpacity:0.32, interactive:false }).addTo(map));
   }
 }
-const fmtTime = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', hour:'2-digit', minute:'2-digit' });
-const fmtDate = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', day:'2-digit', month:'2-digit', year:'numeric' });
+let tzMode = 'local';
+const fmtCache = {};
+function tzNow() {
+  if (tzMode === 'ee') return 'Europe/Tallinn';
+  try { if (window.tzLookup) return window.tzLookup(curLat, curLon); } catch(e) {}
+  return 'UTC';
+}
+function fmtIn(opts) {
+  const tz = tzNow(), key = tz + JSON.stringify(opts);
+  return fmtCache[key] || (fmtCache[key] = new Intl.DateTimeFormat('et-EE', Object.assign({ timeZone: tz }, opts)));
+}
+function fmtT(d) { return fmtIn({ hour:'2-digit', minute:'2-digit' }).format(d); }
+function fmtD(d) { return fmtIn({ day:'2-digit', month:'2-digit', year:'numeric' }).format(d); }
+function tzLabel() {
+  const el = document.getElementById('tzInfo');
+  if (el) el.textContent = 'ajavöönd: ' + tzNow().replace('_', ' ');
+}
+document.getElementById('eeTime').addEventListener('change', e => {
+  tzMode = e.target.checked ? 'ee' : 'local';
+  compute(); drawSunDirs();
+});
 
 function onPick() {
   const c = CATALOG[+pick.value];
@@ -228,10 +254,63 @@ function onPick() {
 function setCell(id, azDate, alt) {
   const el = document.getElementById(id);
   if (!azDate) { el.textContent = '–'; el.className = ''; return; }
-  el.textContent = fmtTime.format(azDate);
+  el.textContent = fmtT(azDate);
   el.className = (alt != null && alt < -0.3) ? 'below' : '';
 }
 
+let wxSeq = 0;
+function wxVerdict(cc) { return cc <= 25 ? 'valdavalt selge' : cc <= 60 ? 'vahelduv pilvisus' : 'valdavalt pilves'; }
+async function loadWeather(peakDate) {
+  const card = document.getElementById('wxCard');
+  card.style.display = '';
+  document.getElementById('wxCloud').textContent = '\u2026';
+  document.getElementById('wxDetail').textContent = 'laen ilmaandmeid';
+  const seq = ++wxSeq;
+  const la = curLat.toFixed(3), lo = curLon.toFixed(3);
+  const utcH = peakDate.getUTCHours();
+  const iso = d => d.toISOString().slice(0, 10);
+  try {
+    const now = new Date();
+    const days = (peakDate - now) / 864e5;
+    if (days >= -1 && days <= 15) {
+      const ds = iso(peakDate);
+      const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=' + la + '&longitude=' + lo +
+        '&hourly=cloud_cover,precipitation_probability,temperature_2m&start_date=' + ds + '&end_date=' + ds + '&timezone=UTC');
+      const j = await r.json();
+      if (seq !== wxSeq) return;
+      const cc = j.hourly.cloud_cover[utcH], pp = j.hourly.precipitation_probability[utcH], tt = j.hourly.temperature_2m[utcH];
+      if (cc == null) throw 0;
+      document.getElementById('wxCloud').textContent = 'pilvisus ' + cc + '%';
+      document.getElementById('wxDetail').textContent = wxVerdict(cc) + ' \u00b7 sademete t\u00f5en\u00e4osus ' + pp + '% \u00b7 ' + Math.round(tt) + '\u00b0C \u00b7 prognoos';
+    } else {
+      const mmdd = iso(peakDate).slice(5);
+      const years = [];
+      for (let y = now.getUTCFullYear() - 5; y < now.getUTCFullYear(); y++) years.push(y);
+      const res = await Promise.all(years.map(async y => {
+        try {
+          const ds = y + '-' + mmdd;
+          const r = await fetch('https://archive-api.open-meteo.com/v1/archive?latitude=' + la + '&longitude=' + lo +
+            '&start_date=' + ds + '&end_date=' + ds + '&hourly=cloud_cover,precipitation,temperature_2m&timezone=UTC');
+          const j = await r.json();
+          return { cc: j.hourly.cloud_cover[utcH], pr: j.hourly.precipitation[utcH], tt: j.hourly.temperature_2m[utcH] };
+        } catch (e) { return null; }
+      }));
+      if (seq !== wxSeq) return;
+      const ok = res.filter(x => x && x.cc != null);
+      if (!ok.length) throw 0;
+      const mean = k => ok.reduce((s, x) => s + x[k], 0) / ok.length;
+      const cc = Math.round(mean('cc')), tt = Math.round(mean('tt'));
+      const rainy = ok.filter(x => x.pr > 0.1).length;
+      document.getElementById('wxCloud').textContent = 'pilvisus keskm. ' + cc + '%';
+      document.getElementById('wxDetail').textContent = wxVerdict(cc) + ' \u00b7 sadu ' + rainy + '/' + ok.length + ' aastal \u00b7 ' + tt +
+        '\u00b0C \u00b7 viimase ' + ok.length + ' aasta keskmine samal kuup\u00e4eval ja kellaajal';
+    }
+  } catch (e) {
+    if (seq !== wxSeq) return;
+    document.getElementById('wxCloud').textContent = '\u2013';
+    document.getElementById('wxDetail').textContent = 'ilmaandmed pole k\u00e4ttesaadavad';
+  }
+}
 function resetDisk(gray) {
   document.getElementById('sundisc').setAttribute('fill', gray ? '#d8d4ca' : '#f2b422');
   document.getElementById('moondisc').setAttribute('cy', -3);
@@ -242,6 +321,7 @@ function compute() {
   const c = CATALOG[+pick.value];
   if (!c) return;
   drawSunDirs();
+  tzLabel();
   document.getElementById('coords').textContent = curLat.toFixed(4) + '° N, ' + curLon.toFixed(4) + '° E';
   const typeEl = document.getElementById('type');
   const A = Astronomy;
@@ -259,6 +339,8 @@ function compute() {
     ['obs','mag','dt','c1','mx','c4','alt'].forEach(id => { const e = document.getElementById(id); e.textContent = '–'; e.className = ''; });
     document.getElementById('rowC2').style.display = 'none';
     document.getElementById('rowC3').style.display = 'none';
+    document.getElementById('wxCard').style.display = 'none';
+    wxSeq++;
     resetDisk(true);
     return;
   }
@@ -266,8 +348,9 @@ function compute() {
   const lk = String(loc.kind);
   typeEl.textContent = (KINDS[lk] || lk) + ' päikesevarjutus';
   typeEl.className = 'type ' + lk;
+  loadWeather(loc.peak.time.date);
   document.getElementById('obs').textContent = (loc.obscuration * 100).toFixed(1).replace('.', ',') + '%';
-  document.getElementById('dt').textContent = fmtDate.format(loc.peak.time.date);
+  document.getElementById('dt').textContent = fmtD(loc.peak.time.date);
   setCell('c1', loc.partial_begin.time.date, loc.partial_begin.altitude);
   setCell('mx', loc.peak.time.date, loc.peak.altitude);
   setCell('c4', loc.partial_end.time.date, loc.partial_end.altitude);
@@ -323,6 +406,12 @@ pick.addEventListener('change', onPick);
 pick.value = 0;
 onPick();
 show(58.2528, 22.4869);
+window.refreshTimes = () => { compute(); drawSunDirs(); };
+</script>
+<script type="module">
+import tzl from 'https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/+esm';
+window.tzLookup = tzl;
+if (window.refreshTimes) window.refreshTimes();
 </script>
 </body>
 </html>
