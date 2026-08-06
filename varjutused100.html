@@ -35,6 +35,8 @@ table.times tr:first-child td { border-top:none; }
 table.times td:first-child { color:var(--sea); }
 table.times td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
 td.below { color:#a0a0a0 !important; text-decoration:line-through; }
+.legend { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--sea); }
+.legend span { display:inline-block; width:22px; height:10px; border-radius:2px; margin-right:8px; vertical-align:middle; }
 .safety { font-size:12.5px; background:#fbecec; border:1px solid #e0b1b1; border-radius:8px; padding:9px 12px; line-height:1.45; color:#7a1f1f; }
 .hint { font-size:12.5px; color:var(--sea); line-height:1.5; }
 .coords { font-size:12px; color:var(--sea); font-variant-numeric:tabular-nums; }
@@ -83,6 +85,11 @@ td.below { color:#a0a0a0 !important; text-decoration:line-through; }
       <tr><td>Päikese kõrgus maksimumil</td><td id="alt">–</td></tr>
     </table>
     <div class="coords" id="coords">–</div>
+    <div class="legend">
+      <div><span style="background:#2b2140; opacity:0.55;"></span>Täisvari (täielik varjutus)</div>
+      <div><span style="background:#b8860b; opacity:0.55;"></span>Rõngasvari (rõngakujuline)</div>
+      <div><span style="background:#d85a30; opacity:0.28; border:1px dashed #d85a30;"></span>Poolvari (osaline varjutus, päike horisondi kohal)</div>
+    </div>
     <div class="safety"><strong>Silmade ohutus:</strong> ära vaata otse päikesesse ilma sertifitseeritud varjutusprillideta (ISO 12312-2). Tavalised päikeseprillid ei kaitse. Optika ette ainult objektiivipoolne päikesefilter.</div>
     <p class="hint">Kellaajad on Eesti aja järgi (arvestab suve/talveaega). Arvutus: astronomy-engine efemeriidid, täpsus ~1 min. Läbikriipsutatud aeg = päike on selleks hetkeks loojunud. <a href="varjutus.html">12.08.2026 detailvaade →</a></p>
   </aside>
@@ -183,6 +190,22 @@ const DirCtl = L.Control.extend({ options: { position: 'topleft' }, onAdd() {
   return box;
 }});
 map.addControl(new DirCtl());
+let SHADOWS = null, shadowLayers = [];
+fetch('varjutused100-varjud.json').then(r => r.json()).then(d => { SHADOWS = d; drawShadows(); }).catch(() => {});
+function drawShadows() {
+  shadowLayers.forEach(l => map.removeLayer(l)); shadowLayers = [];
+  if (!SHADOWS) return;
+  const c = CATALOG[+pick.value], s = SHADOWS[pick.value];
+  if (!c || !s) return;
+  for (const ring of s.p)
+    shadowLayers.push(L.polygon(ring, { color:'#d85a30', weight:1, dashArray:'4 4', opacity:0.5,
+      fillColor:'#d85a30', fillOpacity:0.09, interactive:false }).addTo(map));
+  if (s.u) {
+    const col = c.kind === 'annular' ? '#b8860b' : '#2b2140';
+    shadowLayers.push(L.polygon(s.u.N.concat(s.u.S.slice().reverse()),
+      { color:col, weight:1, fillColor:col, fillOpacity:0.32, interactive:false }).addTo(map));
+  }
+}
 const fmtTime = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', hour:'2-digit', minute:'2-digit' });
 const fmtDate = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', day:'2-digit', month:'2-digit', year:'numeric' });
 
@@ -193,6 +216,7 @@ function onPick() {
   const dd = c.peak.slice(8,10) + '.' + c.peak.slice(5,7) + '.' + c.peak.slice(0,4);
   document.getElementById('gInfo').textContent = dd + ' · suurim varjutus ' + c.peak.slice(11,16) + ' UT' +
     (c.ee > 0.005 ? ' · Eestis kuni ' + Math.round(c.ee*100) + '%' : ' · Eestis pole nähtav');
+  drawShadows();
   if (peakMark) { map.removeLayer(peakMark); peakMark = null; }
   if (c.lat != null) {
     peakMark = L.marker([c.lat, c.lon], { interactive:false, icon: L.divIcon({ className:'',
