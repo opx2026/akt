@@ -246,7 +246,7 @@ function onPick() {
   if (peakMark) { map.removeLayer(peakMark); peakMark = null; }
   if (c.lat != null) {
     peakMark = L.marker([c.lat, c.lon], { interactive:false, icon: L.divIcon({ className:'',
-      html:'<div style="font-size:22px; line-height:22px; text-shadow:0 0 3px #fff;">★</div>', iconSize:[22,22], iconAnchor:[11,11] }) }).addTo(map);
+      html:'<div style="font-size:22px; line-height:22px; color:#d4a017; text-shadow:0 0 3px #fff, 0 0 3px #fff;">★</div>', iconSize:[22,22], iconAnchor:[11,11] }) }).addTo(map);
   }
   compute();
 }
