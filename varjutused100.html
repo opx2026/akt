@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Päikesevarjutused 2026–2126 — vali varjutus ja koht</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root { --ink:#1c2733; --sea:#3d5a73; --mist:#f2f0ea; --umbra:#2b2140; --corona:#d4a017; --partial:#d85a30; --line:#d8d4ca; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Archivo',system-ui,sans-serif; color:var(--ink); background:var(--mist); height:100vh; display:flex; flex-direction:column; }
+header { padding:14px 20px 10px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+header h1 { font-family:'Fraunces',serif; font-weight:600; font-size:20px; }
+header p { font-size:13px; color:var(--sea); }
+main { flex:1; display:flex; min-height:0; }
+#map { flex:1; min-width:0; }
+aside { width:330px; padding:16px; border-left:1px solid var(--line); overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+label.field { font-size:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.06em; color:var(--sea); display:block; margin-bottom:5px; }
+select { width:100%; padding:8px 10px; font:inherit; font-size:13.5px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+.chk { font-size:13px; color:var(--sea); display:flex; align-items:center; gap:6px; }
+.type { font-family:'Fraunces',serif; font-size:20px; font-weight:600; padding:11px 14px; border-radius:8px; background:#fff; border:1px solid var(--line); }
+.type.total { background:var(--umbra); color:#f5e6c8; border-color:var(--umbra); }
+.type.annular { border-left:4px solid var(--corona); border-radius:0 8px 8px 0; }
+.type.partial { border-left:4px solid var(--partial); border-radius:0 8px 8px 0; }
+.type.none { color:var(--sea); font-size:16px; }
+.stat { background:#fff; border:1px solid var(--line); border-radius:8px; padding:11px 14px; }
+.stat .k { font-size:12px; color:var(--sea); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:2px; }
+.stat .v { font-family:'Fraunces',serif; font-size:23px; font-weight:500; }
+.stat .s { font-size:13px; color:var(--sea); }
+table.times { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; font-size:13.5px; }
+table.times td { padding:7px 12px; border-top:1px solid var(--line); }
+table.times tr:first-child td { border-top:none; }
+table.times td:first-child { color:var(--sea); }
+table.times td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+td.below { color:#a0a0a0 !important; text-decoration:line-through; }
+.safety { font-size:12.5px; background:#fbecec; border:1px solid #e0b1b1; border-radius:8px; padding:9px 12px; line-height:1.45; color:#7a1f1f; }
+.hint { font-size:12.5px; color:var(--sea); line-height:1.5; }
+.coords { font-size:12px; color:var(--sea); font-variant-numeric:tabular-nums; }
+@media (max-width:720px){ main{flex-direction:column;} #map{height:44vh;flex:none;} aside{width:100%;border-left:none;border-top:1px solid var(--line);} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Päikesevarjutused 2026–2126</h1>
+  <p>Vali varjutus, klõpsa kaardil — näed kohalikke tingimusi. Kuldne täht = suurima varjutuse punkt.</p>
+</header>
+<main>
+  <div id="map"></div>
+  <aside>
+    <div>
+      <label class="field" for="pick">Varjutus (227 tk)</label>
+      <select id="pick"></select>
+      <label class="chk" style="margin-top:6px;"><input type="checkbox" id="eeOnly"> ainult Eestis nähtavad (32 tk)</label>
+    </div>
+    <div class="stat">
+      <div class="k">Globaalselt</div>
+      <div class="v" id="gKind">–</div>
+      <div class="s" id="gInfo">–</div>
+    </div>
+    <div class="type partial" id="type">Klõpsa kaardil</div>
+    <div style="background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; display:flex; justify-content:center;">
+      <svg id="sunviz" viewBox="-1.6 -1.6 3.2 3.2" width="140" height="140" role="img" aria-label="Päikeseketas maksimumhetkel">
+        <defs><clipPath id="sunclip"><circle r="1"/></clipPath></defs>
+        <circle id="corona" r="1.07" fill="none" stroke="#e8d9a8" stroke-width="0.12" opacity="0"/>
+        <circle id="sundisc" r="1" fill="#f2b422"/>
+        <g clip-path="url(#sunclip)"><circle id="moondisc" r="1.04" cx="0" cy="-3" fill="#2b2140"/></g>
+      </svg>
+    </div>
+    <div class="stat">
+      <div class="k">Kaetud pindalast</div>
+      <div class="v" id="obs">–</div>
+      <div class="s" id="mag">–</div>
+    </div>
+    <table class="times">
+      <tr><td>Kuupäev</td><td id="dt">–</td></tr>
+      <tr><td>Varjutus algab</td><td id="c1">–</td></tr>
+      <tr id="rowC2" style="display:none;"><td id="lblC2">Täisfaas algab</td><td id="c2">–</td></tr>
+      <tr><td>Maksimum</td><td id="mx">–</td></tr>
+      <tr id="rowC3" style="display:none;"><td id="lblC3">Täisfaas lõpeb</td><td id="c3">–</td></tr>
+      <tr><td>Varjutus lõpeb</td><td id="c4">–</td></tr>
+      <tr><td>Päikese kõrgus maksimumil</td><td id="alt">–</td></tr>
+    </table>
+    <div class="coords" id="coords">–</div>
+    <div class="safety"><strong>Silmade ohutus:</strong> ära vaata otse päikesesse ilma sertifitseeritud varjutusprillideta (ISO 12312-2). Tavalised päikeseprillid ei kaitse. Optika ette ainult objektiivipoolne päikesefilter.</div>
+    <p class="hint">Kellaajad on Eesti aja järgi (arvestab suve/talveaega). Arvutus: astronomy-engine efemeriidid, täpsus ~1 min. Läbikriipsutatud aeg = päike on selleks hetkeks loojunud. <a href="varjutus.html">12.08.2026 detailvaade →</a></p>
+  </aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2/astronomy.browser.min.js"></script>
+<script>
+const CATALOG = [{"peak":"2026-08-12T17:45Z","kind":"total","lat":65.22,"lon":-25.25,"obs":1,"ee":0.802,"eeKind":"partial"},{"peak":"2027-02-06T15:59Z","kind":"annular","lat":-31.29,"lon":-48.47,"obs":0.861,"ee":0},{"peak":"2027-08-02T10:06Z","kind":"total","lat":25.49,"lon":33.19,"obs":1,"ee":0.132,"eeKind":"partial"},{"peak":"2028-01-26T15:07Z","kind":"annular","lat":2.97,"lon":-51.55,"obs":0.848,"ee":0},{"peak":"2028-07-22T02:55Z","kind":"total","lat":-15.6,"lon":126.71,"obs":1,"ee":0},{"peak":"2029-01-14T17:12Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2029-06-12T04:04Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.086,"eeKind":"partial"},{"peak":"2029-07-11T15:36Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2029-12-05T15:02Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2030-06-01T06:27Z","kind":"annular","lat":56.51,"lon":80.07,"obs":0.892,"ee":0.548,"eeKind":"partial"},{"peak":"2030-11-25T06:50Z","kind":"total","lat":-43.61,"lon":71.24,"obs":1,"ee":0},{"peak":"2031-05-21T07:14Z","kind":"annular","lat":8.92,"lon":71.73,"obs":0.92,"ee":0},{"peak":"2031-11-14T21:06Z","kind":"total","lat":-0.63,"lon":-137.63,"obs":1,"ee":0},{"peak":"2032-05-09T13:25Z","kind":"annular","lat":-51.3,"lon":-7.04,"obs":0.992,"ee":0},{"peak":"2032-11-03T05:32Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2033-03-30T18:01Z","kind":"total","lat":71.29,"lon":-155.57,"obs":1,"ee":0},{"peak":"2033-09-23T13:53Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2034-03-20T10:17Z","kind":"total","lat":16.04,"lon":22.23,"obs":1,"ee":0.014,"eeKind":"partial"},{"peak":"2034-09-12T16:18Z","kind":"annular","lat":-18.23,"lon":-72.59,"obs":0.948,"ee":0},{"peak":"2035-03-09T23:04Z","kind":"annular","lat":-29.05,"lon":-154.94,"obs":0.984,"ee":0},{"peak":"2035-09-02T01:55Z","kind":"total","lat":29.1,"lon":158.05,"obs":1,"ee":0},{"peak":"2036-02-27T04:45Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2036-07-23T10:30Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2036-08-21T17:24Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.756,"eeKind":"partial"},{"peak":"2037-01-16T09:47Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.58,"eeKind":"partial"},{"peak":"2037-07-13T02:39Z","kind":"total","lat":-24.76,"lon":139.07,"obs":1,"ee":0},{"peak":"2038-01-05T13:45Z","kind":"annular","lat":2.08,"lon":-25.45,"obs":0.946,"ee":0},{"peak":"2038-07-02T13:31Z","kind":"annular","lat":25.43,"lon":-21.89,"obs":0.982,"ee":0},{"peak":"2038-12-26T00:58Z","kind":"total","lat":-40.29,"lon":163.94,"obs":1,"ee":0},{"peak":"2039-06-21T17:11Z","kind":"annular","lat":78.89,"lon":-102.16,"obs":0.894,"ee":0.882,"eeKind":"annular"},{"peak":"2039-12-15T16:22Z","kind":"total","lat":-80.84,"lon":172.59,"obs":1,"ee":0},{"peak":"2040-05-11T03:41Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2040-11-04T19:07Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2041-04-30T11:50Z","kind":"total","lat":-9.63,"lon":12.2,"obs":1,"ee":0},{"peak":"2041-10-25T01:34Z","kind":"annular","lat":9.92,"lon":162.86,"obs":0.896,"ee":0},{"peak":"2042-04-20T02:16Z","kind":"total","lat":26.95,"lon":137.29,"obs":1,"ee":0},{"peak":"2042-10-14T01:59Z","kind":"annular","lat":-23.76,"lon":137.81,"obs":0.865,"ee":0},{"peak":"2043-04-09T18:56Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2043-10-03T03:00Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2044-02-28T20:23Z","kind":"annular","lat":-62.19,"lon":-25.74,"obs":0.922,"ee":0},{"peak":"2044-08-23T01:15Z","kind":"total","lat":64.33,"lon":-120.59,"obs":1,"ee":0},{"peak":"2045-02-16T23:54Z","kind":"annular","lat":-28.25,"lon":-166.2,"obs":0.862,"ee":0},{"peak":"2045-08-12T17:41Z","kind":"total","lat":25.9,"lon":-78.55,"obs":1,"ee":0},{"peak":"2046-02-05T23:04Z","kind":"annular","lat":4.79,"lon":-171.4,"obs":0.852,"ee":0},{"peak":"2046-08-02T10:19Z","kind":"total","lat":-12.75,"lon":15.18,"obs":1,"ee":0},{"peak":"2047-01-26T01:31Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2047-06-23T10:51Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2047-07-22T22:34Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2047-12-16T23:48Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2048-06-11T12:57Z","kind":"annular","lat":63.67,"lon":-11.52,"obs":0.891,"ee":0.889,"eeKind":"annular"},{"peak":"2048-12-05T15:34Z","kind":"total","lat":-46.13,"lon":-56.39,"obs":1,"ee":0},{"peak":"2049-05-31T13:58Z","kind":"annular","lat":15.29,"lon":-29.85,"obs":0.928,"ee":0},{"peak":"2049-11-25T05:32Z","kind":"total","lat":-3.8,"lon":95.25,"obs":1,"ee":0},{"peak":"2050-05-20T20:41Z","kind":"total","lat":-40.12,"lon":-123.7,"obs":1,"ee":0},{"peak":"2050-11-14T13:29Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.743,"eeKind":"partial"},{"peak":"2051-04-11T02:09Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2051-10-04T21:00Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2052-03-30T18:30Z","kind":"total","lat":22.36,"lon":-102.53,"obs":1,"ee":0},{"peak":"2052-09-22T23:37Z","kind":"annular","lat":-25.68,"lon":174.99,"obs":0.948,"ee":0},{"peak":"2053-03-20T07:06Z","kind":"annular","lat":-23.03,"lon":82.95,"obs":0.984,"ee":0},{"peak":"2053-09-12T09:32Z","kind":"total","lat":21.48,"lon":41.72,"obs":1,"ee":0.17,"eeKind":"partial"},{"peak":"2054-03-09T12:32Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2054-08-03T18:02Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2054-09-02T01:07Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2055-01-27T17:52Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2055-07-24T09:56Z","kind":"total","lat":-33.26,"lon":25.79,"obs":1,"ee":0},{"peak":"2056-01-16T22:14Z","kind":"annular","lat":3.89,"lon":-153.53,"obs":0.953,"ee":0},{"peak":"2056-07-12T20:20Z","kind":"annular","lat":19.45,"lon":-123.73,"obs":0.976,"ee":0},{"peak":"2057-01-05T09:46Z","kind":"total","lat":-39.25,"lon":35.19,"obs":1,"ee":0},{"peak":"2057-07-01T23:38Z","kind":"annular","lat":71.5,"lon":-176.2,"obs":0.896,"ee":0},{"peak":"2057-12-26T01:12Z","kind":"total","lat":-84.82,"lon":21.48,"obs":1,"ee":0},{"peak":"2058-05-22T10:37Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2058-06-21T00:17Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2058-11-16T03:21Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2059-05-11T19:20Z","kind":"total","lat":-10.72,"lon":-100.4,"obs":1,"ee":0},{"peak":"2059-11-05T09:16Z","kind":"annular","lat":8.73,"lon":47.08,"obs":0.887,"ee":0.339,"eeKind":"partial"},{"peak":"2060-04-30T10:08Z","kind":"total","lat":27.96,"lon":20.9,"obs":1,"ee":0.207,"eeKind":"partial"},{"peak":"2060-10-24T09:22Z","kind":"annular","lat":-25.81,"lon":28.1,"obs":0.861,"ee":0},{"peak":"2061-04-20T02:54Z","kind":"total","lat":64.54,"lon":59.11,"obs":1,"ee":0,"eeKind":"partial"},{"peak":"2061-10-13T10:30Z","kind":"annular","lat":-62.16,"lon":-54.62,"obs":0.897,"ee":0},{"peak":"2062-03-11T04:24Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2062-09-03T08:52Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.036,"eeKind":"partial"},{"peak":"2063-02-28T07:41Z","kind":"annular","lat":-25.24,"lon":77.75,"obs":0.864,"ee":0},{"peak":"2063-08-24T01:20Z","kind":"total","lat":25.55,"lon":168.44,"obs":1,"ee":0},{"peak":"2064-02-17T06:58Z","kind":"annular","lat":7.04,"lon":69.74,"obs":0.858,"ee":0},{"peak":"2064-08-12T17:44Z","kind":"total","lat":-10.94,"lon":-95.98,"obs":1,"ee":0},{"peak":"2065-02-05T09:50Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.653,"eeKind":"partial"},{"peak":"2065-07-03T17:31Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.017,"eeKind":"partial"},{"peak":"2065-08-02T05:32Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2065-12-27T08:37Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2066-06-22T19:23Z","kind":"annular","lat":70.11,"lon":-96.38,"obs":0.89,"ee":0,"eeKind":"partial"},{"peak":"2066-12-17T00:21Z","kind":"total","lat":-47.36,"lon":175.78,"obs":1,"ee":0},{"peak":"2067-06-11T20:40Z","kind":"annular","lat":21.02,"lon":-130.18,"obs":0.935,"ee":0},{"peak":"2067-12-06T14:01Z","kind":"total","lat":-6.05,"lon":-32.37,"obs":1,"ee":0},{"peak":"2068-05-31T03:54Z","kind":"total","lat":-31.05,"lon":123.24,"obs":1,"ee":0},{"peak":"2068-11-24T21:30Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2069-04-21T10:08Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.207,"eeKind":"partial"},{"peak":"2069-05-20T17:51Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2069-10-15T04:17Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2070-04-11T02:33Z","kind":"total","lat":29.03,"lon":135.08,"obs":1,"ee":0},{"peak":"2070-10-04T07:06Z","kind":"annular","lat":-32.84,"lon":60.42,"obs":0.947,"ee":0},{"peak":"2071-03-31T14:58Z","kind":"annular","lat":-16.72,"lon":-37,"obs":0.984,"ee":0},{"peak":"2071-09-23T17:18Z","kind":"total","lat":14.23,"lon":-76.73,"obs":1,"ee":0},{"peak":"2072-03-19T20:08Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2072-09-12T08:56Z","kind":"total","lat":69.77,"lon":102.03,"obs":1,"ee":0.381,"eeKind":"partial"},{"peak":"2073-02-07T01:53Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2073-08-03T17:12Z","kind":"total","lat":-43.24,"lon":-89.39,"obs":1,"ee":0},{"peak":"2074-01-27T06:41Z","kind":"annular","lat":6.54,"lon":78.79,"obs":0.96,"ee":0},{"peak":"2074-07-24T03:08Z","kind":"annular","lat":12.79,"lon":133.73,"obs":0.968,"ee":0},{"peak":"2075-01-16T18:33Z","kind":"total","lat":-37.19,"lon":-94.08,"obs":1,"ee":0},{"peak":"2075-07-13T06:03Z","kind":"annular","lat":63.13,"lon":95.21,"obs":0.896,"ee":0.768,"eeKind":"partial"},{"peak":"2076-01-06T10:04Z","kind":"total","lat":-87.13,"lon":-173.32,"obs":1,"ee":0},{"peak":"2076-06-01T17:28Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2076-07-01T06:48Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2076-11-26T11:40Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.615,"eeKind":"partial"},{"peak":"2077-05-22T02:43Z","kind":"total","lat":-13.11,"lon":148.33,"obs":1,"ee":0},{"peak":"2077-11-15T17:05Z","kind":"annular","lat":7.77,"lon":-70.82,"obs":0.878,"ee":0},{"peak":"2078-05-11T17:54Z","kind":"total","lat":28.14,"lon":-93.72,"obs":1,"ee":0},{"peak":"2078-11-04T16:53Z","kind":"annular","lat":-27.86,"lon":-83.32,"obs":0.857,"ee":0},{"peak":"2079-05-01T10:47Z","kind":"total","lat":66.17,"lon":-46.38,"obs":1,"ee":0.265,"eeKind":"partial"},{"peak":"2079-10-24T18:08Z","kind":"annular","lat":-63.43,"lon":-160.67,"obs":0.9,"ee":0},{"peak":"2080-03-21T12:17Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2080-09-13T16:35Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.846,"eeKind":"partial"},{"peak":"2081-03-10T15:20Z","kind":"annular","lat":-22.4,"lon":-36.7,"obs":0.866,"ee":0},{"peak":"2081-09-03T09:04Z","kind":"total","lat":24.62,"lon":53.66,"obs":1,"ee":0.553,"eeKind":"partial"},{"peak":"2082-02-27T14:44Z","kind":"annular","lat":9.42,"lon":-47.1,"obs":0.865,"ee":0,"eeKind":"partial"},{"peak":"2082-08-24T01:13Z","kind":"total","lat":-10.3,"lon":151.78,"obs":1,"ee":0},{"peak":"2083-02-16T18:03Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2083-07-15T00:11Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2083-08-13T12:31Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2084-01-07T17:27Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2084-07-03T01:47Z","kind":"annular","lat":74.97,"lon":-169.18,"obs":0.888,"ee":0,"eeKind":"partial"},{"peak":"2084-12-27T09:10Z","kind":"total","lat":-47.31,"lon":47.7,"obs":1,"ee":0},{"peak":"2085-06-22T03:18Z","kind":"annular","lat":26.13,"lon":131.27,"obs":0.942,"ee":0},{"peak":"2085-12-16T22:34Z","kind":"annular","lat":-7.25,"lon":-160.81,"obs":0.994,"ee":0},{"peak":"2086-06-11T11:04Z","kind":"total","lat":-23.24,"lon":12.49,"obs":1,"ee":0},{"peak":"2086-12-06T05:36Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2087-05-02T18:01Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2087-06-01T01:24Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2087-10-26T11:44Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2088-04-21T10:28Z","kind":"total","lat":35.97,"lon":15.1,"obs":1,"ee":0.412,"eeKind":"partial"},{"peak":"2088-10-14T14:45Z","kind":"annular","lat":-39.65,"lon":-55.99,"obs":0.946,"ee":0},{"peak":"2089-04-10T22:41Z","kind":"annular","lat":-10.23,"lon":-154.78,"obs":0.984,"ee":0},{"peak":"2089-10-04T01:12Z","kind":"total","lat":7.43,"lon":162.81,"obs":1,"ee":0},{"peak":"2090-03-31T03:35Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2090-09-23T16:53Z","kind":"total","lat":60.69,"lon":-40.45,"obs":1,"ee":0},{"peak":"2091-02-18T09:51Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0.414,"eeKind":"partial"},{"peak":"2091-08-15T00:31Z","kind":"total","lat":-55.57,"lon":150.49,"obs":1,"ee":0},{"peak":"2092-02-07T15:07Z","kind":"annular","lat":9.9,"lon":-48.71,"obs":0.968,"ee":0},{"peak":"2092-08-03T09:56Z","kind":"annular","lat":5.59,"lon":30.32,"obs":0.959,"ee":0},{"peak":"2093-01-27T03:19Z","kind":"total","lat":-34.15,"lon":136.42,"obs":1,"ee":0},{"peak":"2093-07-23T12:28Z","kind":"annular","lat":54.57,"lon":1.36,"obs":0.896,"ee":0.713,"eeKind":"partial"},{"peak":"2094-01-16T18:55Z","kind":"total","lat":-84.77,"lon":-9.67,"obs":1,"ee":0},{"peak":"2094-06-13T00:19Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2094-07-12T13:21Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2094-12-07T20:02Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2095-06-02T10:04Z","kind":"total","lat":-16.7,"lon":37.16,"obs":1,"ee":0},{"peak":"2095-11-27T00:59Z","kind":"annular","lat":7.21,"lon":169.79,"obs":0.871,"ee":0},{"peak":"2096-05-22T01:34Z","kind":"total","lat":27.27,"lon":153.43,"obs":1,"ee":0},{"peak":"2096-11-15T00:32Z","kind":"annular","lat":-29.76,"lon":163.29,"obs":0.853,"ee":0},{"peak":"2097-05-11T18:31Z","kind":"total","lat":67.41,"lon":-149.5,"obs":1,"ee":0},{"peak":"2097-11-04T01:58Z","kind":"annular","lat":-65.79,"lon":86.66,"obs":0.901,"ee":0},{"peak":"2098-04-01T19:59Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2098-09-25T00:27Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2098-10-24T10:32Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2099-03-21T22:51Z","kind":"annular","lat":-20.03,"lon":-149.04,"obs":0.868,"ee":0},{"peak":"2099-09-14T16:54Z","kind":"total","lat":23.35,"lon":-62.8,"obs":1,"ee":0},{"peak":"2100-03-10T22:24Z","kind":"annular","lat":11.96,"lon":-162.43,"obs":0.872,"ee":0},{"peak":"2100-09-04T08:45Z","kind":"total","lat":-10.49,"lon":39,"obs":1,"ee":0},{"peak":"2101-02-28T02:13Z","kind":"annular","lat":60.57,"lon":79.6,"obs":0.923,"ee":0},{"peak":"2101-08-24T19:33Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2102-01-19T02:17Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2102-07-15T08:11Z","kind":"annular","lat":75.89,"lon":133.9,"obs":0.883,"ee":0.217,"eeKind":"partial"},{"peak":"2103-01-08T18:00Z","kind":"total","lat":-46.1,"lon":-80.8,"obs":1,"ee":0},{"peak":"2103-07-04T09:58Z","kind":"annular","lat":30.29,"lon":33.16,"obs":0.948,"ee":0.138,"eeKind":"partial"},{"peak":"2103-12-29T07:09Z","kind":"annular","lat":-7.52,"lon":70.53,"obs":0.987,"ee":0},{"peak":"2104-06-22T18:12Z","kind":"total","lat":-16.59,"lon":-96.84,"obs":1,"ee":0},{"peak":"2104-12-17T13:44Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0,"eeKind":"partial"},{"peak":"2105-05-14T01:48Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2105-06-12T08:54Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2105-11-06T19:19Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2106-05-03T18:15Z","kind":"total","lat":43.07,"lon":-102.27,"obs":1,"ee":0},{"peak":"2106-10-26T22:33Z","kind":"annular","lat":-45.92,"lon":-174.08,"obs":0.946,"ee":0},{"peak":"2107-04-23T06:15Z","kind":"annular","lat":-3.65,"lon":89.92,"obs":0.984,"ee":0},{"peak":"2107-10-16T09:14Z","kind":"total","lat":1.14,"lon":40.59,"obs":1,"ee":0},{"peak":"2108-04-11T10:51Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2108-10-05T00:57Z","kind":"total","lat":52.49,"lon":-171.96,"obs":1,"ee":0},{"peak":"2109-03-01T17:42Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2109-08-26T07:53Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2110-02-18T23:27Z","kind":"annular","lat":14.06,"lon":-175.24,"obs":0.978,"ee":0},{"peak":"2110-08-15T16:46Z","kind":"annular","lat":-1.98,"lon":-74.26,"obs":0.95,"ee":0},{"peak":"2111-02-08T12:01Z","kind":"total","lat":-30.27,"lon":6.86,"obs":1,"ee":0},{"peak":"2111-08-04T18:56Z","kind":"annular","lat":45.96,"lon":-95.29,"obs":0.894,"ee":0},{"peak":"2112-01-29T03:45Z","kind":"total","lat":-80.66,"lon":-163.18,"obs":1,"ee":0},{"peak":"2112-06-24T07:05Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2112-07-23T19:54Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2112-12-19T04:29Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2113-06-13T17:22Z","kind":"total","lat":-21.69,"lon":-73.76,"obs":1,"ee":0},{"peak":"2113-12-08T08:59Z","kind":"annular","lat":7.08,"lon":48.94,"obs":0.864,"ee":0.233,"eeKind":"partial"},{"peak":"2114-06-03T09:10Z","kind":"total","lat":25.37,"lon":41.29,"obs":1,"ee":0},{"peak":"2114-11-27T08:20Z","kind":"annular","lat":-31.27,"lon":48.36,"obs":0.851,"ee":0},{"peak":"2115-05-24T02:09Z","kind":"total","lat":67.81,"lon":109.4,"obs":1,"ee":0.565,"eeKind":"partial"},{"peak":"2115-11-16T09:54Z","kind":"annular","lat":-68.75,"lon":-27.86,"obs":0.903,"ee":0},{"peak":"2116-04-13T03:32Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2116-10-06T08:27Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2116-11-04T18:45Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2117-04-02T06:11Z","kind":"annular","lat":-18.36,"lon":101.13,"obs":0.871,"ee":0},{"peak":"2117-09-26T00:51Z","kind":"total","lat":21.84,"lon":178.43,"obs":1,"ee":0},{"peak":"2118-03-22T05:56Z","kind":"annular","lat":14.34,"lon":84.69,"obs":0.88,"ee":0},{"peak":"2118-09-15T16:24Z","kind":"total","lat":-11.5,"lon":-75.24,"obs":1,"ee":0},{"peak":"2119-03-11T10:15Z","kind":"annular","lat":56.66,"lon":-29.19,"obs":0.94,"ee":0.479,"eeKind":"partial"},{"peak":"2119-09-05T02:40Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2120-01-30T11:05Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2120-07-25T14:35Z","kind":"annular","lat":66.23,"lon":89.85,"obs":0.873,"ee":0.628,"eeKind":"partial"},{"peak":"2121-01-19T02:50Z","kind":"total","lat":-43.9,"lon":150.16,"obs":1,"ee":0},{"peak":"2121-07-14T16:38Z","kind":"annular","lat":33.54,"lon":-64.27,"obs":0.952,"ee":0},{"peak":"2122-01-08T15:44Z","kind":"annular","lat":-6.9,"lon":-58.16,"obs":0.982,"ee":0},{"peak":"2122-07-04T01:21Z","kind":"total","lat":-11.08,"lon":154.66,"obs":1,"ee":0},{"peak":"2122-12-28T21:56Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2123-05-25T09:29Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2123-06-23T16:21Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2123-11-18T03:03Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0},{"peak":"2124-05-14T01:54Z","kind":"total","lat":50.26,"lon":143.21,"obs":1,"ee":0},{"peak":"2124-11-06T06:32Z","kind":"annular","lat":-51.55,"lon":66.83,"obs":0.946,"ee":0},{"peak":"2125-05-03T13:38Z","kind":"annular","lat":2.96,"lon":-22.62,"obs":0.983,"ee":0},{"peak":"2125-10-26T17:26Z","kind":"total","lat":-4.49,"lon":-83.54,"obs":1,"ee":0},{"peak":"2126-04-22T17:59Z","kind":"partial","lat":null,"lon":null,"obs":null,"ee":0}];
+const KINDS = { total:'Täielik', annular:'Rõngakujuline', partial:'Osaline' };
+const map = L.map('map').setView([57, 15], 3);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+const pick = document.getElementById('pick');
+const eeOnly = document.getElementById('eeOnly');
+function fillPick() {
+  const cur = pick.value;
+  pick.innerHTML = '';
+  CATALOG.forEach((c, i) => {
+    if (eeOnly.checked && !(c.ee > 0.005)) return;
+    const d = c.peak.slice(8,10) + '.' + c.peak.slice(5,7) + '.' + c.peak.slice(0,4);
+    const ee = c.ee > 0.005 ? (' · Eestis ' + Math.round(c.ee*100) + '%') : '';
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = d + ' — ' + (KINDS[c.kind] || c.kind).toLowerCase() + ee;
+    pick.appendChild(o);
+  });
+  if ([...pick.options].some(o => o.value === cur)) pick.value = cur;
+}
+fillPick();
+eeOnly.addEventListener('change', () => { fillPick(); onPick(); });
+
+let marker = null, peakMark = null, curLat = 58.2528, curLon = 22.4869;
+const fmtTime = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', hour:'2-digit', minute:'2-digit' });
+const fmtDate = new Intl.DateTimeFormat('et-EE', { timeZone:'Europe/Tallinn', day:'2-digit', month:'2-digit', year:'numeric' });
+
+function onPick() {
+  const c = CATALOG[+pick.value];
+  if (!c) return;
+  document.getElementById('gKind').textContent = KINDS[c.kind] || c.kind;
+  const dd = c.peak.slice(8,10) + '.' + c.peak.slice(5,7) + '.' + c.peak.slice(0,4);
+  document.getElementById('gInfo').textContent = dd + ' · suurim varjutus ' + c.peak.slice(11,16) + ' UT' +
+    (c.ee > 0.005 ? ' · Eestis kuni ' + Math.round(c.ee*100) + '%' : ' · Eestis pole nähtav');
+  if (peakMark) { map.removeLayer(peakMark); peakMark = null; }
+  if (c.lat != null) {
+    peakMark = L.marker([c.lat, c.lon], { interactive:false, icon: L.divIcon({ className:'',
+      html:'<div style="font-size:22px; line-height:22px; text-shadow:0 0 3px #fff;">★</div>', iconSize:[22,22], iconAnchor:[11,11] }) }).addTo(map);
+  }
+  compute();
+}
+
+function setCell(id, azDate, alt) {
+  const el = document.getElementById(id);
+  if (!azDate) { el.textContent = '–'; el.className = ''; return; }
+  el.textContent = fmtTime.format(azDate);
+  el.className = (alt != null && alt < -0.3) ? 'below' : '';
+}
+
+function resetDisk(gray) {
+  document.getElementById('sundisc').setAttribute('fill', gray ? '#d8d4ca' : '#f2b422');
+  document.getElementById('moondisc').setAttribute('cy', -3);
+  document.getElementById('corona').setAttribute('opacity', 0);
+}
+
+function compute() {
+  const c = CATALOG[+pick.value];
+  if (!c) return;
+  document.getElementById('coords').textContent = curLat.toFixed(4) + '° N, ' + curLon.toFixed(4) + '° E';
+  const typeEl = document.getElementById('type');
+  const A = Astronomy;
+  const peak = new Date(c.peak);
+  let loc = null;
+  try {
+    loc = A.SearchLocalSolarEclipse(new Date(peak.getTime() - 36e5*40), new A.Observer(curLat, curLon, 0));
+    if (Math.abs(loc.peak.time.date - peak) > 36e5*30) loc = null;
+  } catch(e) { loc = null; }
+
+  const anyAbove = loc && [loc.partial_begin, loc.peak, loc.partial_end].some(e => e && e.altitude > -0.5);
+  if (!loc || !anyAbove) {
+    typeEl.textContent = loc ? 'Pole nähtav — päike on siin varjutuse ajal loojunud' : 'Varjutus pole siin nähtav';
+    typeEl.className = 'type none';
+    ['obs','mag','dt','c1','mx','c4','alt'].forEach(id => { const e = document.getElementById(id); e.textContent = '–'; e.className = ''; });
+    document.getElementById('rowC2').style.display = 'none';
+    document.getElementById('rowC3').style.display = 'none';
+    resetDisk(true);
+    return;
+  }
+
+  const lk = String(loc.kind);
+  typeEl.textContent = (KINDS[lk] || lk) + ' päikesevarjutus';
+  typeEl.className = 'type ' + lk;
+  document.getElementById('obs').textContent = (loc.obscuration * 100).toFixed(1).replace('.', ',') + '%';
+  document.getElementById('dt').textContent = fmtDate.format(loc.peak.time.date);
+  setCell('c1', loc.partial_begin.time.date, loc.partial_begin.altitude);
+  setCell('mx', loc.peak.time.date, loc.peak.altitude);
+  setCell('c4', loc.partial_end.time.date, loc.partial_end.altitude);
+  document.getElementById('alt').textContent = loc.peak.altitude.toFixed(1).replace('.', ',') + '°';
+
+  const hasCentral = loc.total_begin && loc.total_end;
+  document.getElementById('rowC2').style.display = hasCentral ? '' : 'none';
+  document.getElementById('rowC3').style.display = hasCentral ? '' : 'none';
+  let magLine = '';
+  if (hasCentral) {
+    const lbl = lk === 'annular' ? 'Rõngasfaas' : 'Täisfaas';
+    document.getElementById('lblC2').textContent = lbl + ' algab';
+    document.getElementById('lblC3').textContent = lbl + ' lõpeb';
+    setCell('c2', loc.total_begin.time.date, loc.total_begin.altitude);
+    setCell('c3', loc.total_end.time.date, loc.total_end.altitude);
+    const dur = Math.round((loc.total_end.time.date - loc.total_begin.time.date) / 1000);
+    magLine = (lk === 'annular' ? 'rõngasfaas ' : 'täisfaas ') + Math.floor(dur/60) + ' min ' + (dur%60) + ' s';
+  }
+
+  // sun disk geometry at local peak
+  const obsv = new A.Observer(curLat, curLon, 0);
+  const t = loc.peak.time;
+  const se = A.Equator(A.Body.Sun, t, obsv, true, true);
+  const me = A.Equator(A.Body.Moon, t, obsv, true, true);
+  const D2R = Math.PI/180;
+  const cosSep = Math.sin(se.dec*D2R)*Math.sin(me.dec*D2R) + Math.cos(se.dec*D2R)*Math.cos(me.dec*D2R)*Math.cos((se.ra-me.ra)*15*D2R);
+  const sep = Math.acos(Math.min(1, cosSep))/D2R;
+  const rs = Math.asin(695700/(se.dist*1.496e8))/D2R;
+  const rm = Math.asin(1737.4/(me.dist*1.496e8))/D2R;
+  const ratio = rm/rs, cU = sep/rs;
+  let dx = (me.ra - se.ra)*15*Math.cos(se.dec*D2R), dy = me.dec - se.dec;
+  const dn = Math.hypot(dx, dy) || 1;
+  const moon = document.getElementById('moondisc');
+  moon.setAttribute('r', ratio.toFixed(4));
+  moon.setAttribute('cx', (-cU*dx/dn).toFixed(4));
+  moon.setAttribute('cy', (-cU*dy/dn).toFixed(4));
+  resetDisk(false);
+  moon.setAttribute('r', ratio.toFixed(4));
+  moon.setAttribute('cx', (-cU*dx/dn).toFixed(4));
+  moon.setAttribute('cy', (-cU*dy/dn).toFixed(4));
+  document.getElementById('corona').setAttribute('opacity', lk === 'total' ? 1 : 0);
+  document.getElementById('mag').textContent = magLine || (KINDS[lk] ? '' : lk);
+}
+
+function show(lat, lon) {
+  curLat = lat; curLon = lon;
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat, lon]).addTo(map);
+  compute();
+}
+map.on('click', e => show(e.latlng.lat, e.latlng.lng));
+pick.addEventListener('change', onPick);
+pick.value = 0;
+onPick();
+show(58.2528, 22.4869);
+</script>
+</body>
+</html>
